@@ -13,12 +13,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const camTimeA = document.getElementById("camTimeA");
   const camTimeB = document.getElementById("camTimeB");
 
-  // Bounding Box Elements
-  const bboxForkliftTagA = document.getElementById("bboxForkliftTagA");
-  const bboxWorkerTagA = document.getElementById("bboxWorkerTagA");
-  const bboxForkliftTagB = document.getElementById("bboxForkliftTagB");
-  const bboxWorkerTagB = document.getElementById("bboxWorkerTagB");
-
   // Active Incident Card Elements
   const incidentTitle = document.getElementById("incidentTitle");
   const incidentDescription = document.getElementById("incidentDescription");
@@ -144,24 +138,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (incidentRiskBadge) {
       incidentRiskBadge.textContent = `RISK: ${data.risk_level || 'MEDIUM'}`;
       incidentRiskBadge.className = data.risk_level === 'CRITICAL' ? 'risk-badge-critical' : 'risk-badge-medium';
-    }
-
-    // Bounding Box customization per scenario
-    if (data.scenario === 'scenario_2_box_no_helmet') {
-      if (bboxForkliftTagA) bboxForkliftTagA.textContent = "Overhead Bay 0.94";
-      if (bboxWorkerTagA) bboxWorkerTagA.textContent = "No Helmet 0.96";
-      if (bboxForkliftTagB) bboxForkliftTagB.textContent = "Cargo Crate 0.92";
-      if (bboxWorkerTagB) bboxWorkerTagB.textContent = "No Helmet 0.94";
-    } else if (data.scenario === 'scenario_3_fire') {
-      if (bboxForkliftTagA) bboxForkliftTagA.textContent = "Fire Plume 0.97";
-      if (bboxWorkerTagA) bboxWorkerTagA.textContent = "Smoke Haze 0.91";
-      if (bboxForkliftTagB) bboxForkliftTagB.textContent = "Ceiling Fire 0.98";
-      if (bboxWorkerTagB) bboxWorkerTagB.textContent = "Evacuation 0.89";
-    } else {
-      if (bboxForkliftTagA) bboxForkliftTagA.textContent = "Forklift 0.91";
-      if (bboxWorkerTagA) bboxWorkerTagA.textContent = "Worker 0.87";
-      if (bboxForkliftTagB) bboxForkliftTagB.textContent = "Forklift 0.89";
-      if (bboxWorkerTagB) bboxWorkerTagB.textContent = "Worker 0.93";
     }
   }
 
