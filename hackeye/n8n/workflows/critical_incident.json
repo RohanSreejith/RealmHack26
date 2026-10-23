@@ -1,0 +1,78 @@
+{
+  "name": "Hack-Eye - Critical Incident Escalation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hackeye-critical-incident",
+        "options": {}
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "application": "Hack-Eye Operational Log",
+        "table": "incidents"
+      },
+      "name": "Log Incident Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "channel": "#industrial-safety-alerts",
+        "text": "=🚨 *CRITICAL SAFETY BREACH* in {{ $json.body.zone }}\nWorker: {{ $json.body.worker_id }}\nMachine: {{ $json.body.machine_id }} ({{ $json.body.machine_type }})\nDistance: {{ $json.body.distance_m }}m | TTC: {{ $json.body.ttc_seconds }}s\n\n*AI Root Cause:* {{ $json.body.ai_summary }}\n*Action Required:* {{ $json.body.recommended_actions[0] }}"
+      },
+      "name": "Send Slack/SMS Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://api.render.com/v1/services/hackeye/workflow/complete",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"status\": \"ESCALATED\", \"incident_id\": \"{{ $json.body.incident_id }}\" }"
+      },
+      "name": "Update Render Dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 400]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Log Incident Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Incident Database": {
+      "main": [
+        [
+          {
+            "node": "Send Slack/SMS Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Render Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

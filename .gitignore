@@ -1,0 +1,29 @@
+# Python & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Environment Variables & Secrets
+.env
+*.local
+
+# Database
+hackeye_edge.db
+safeswarm_edge.db
+*.db
+*.sqlite3
+
+# Ultralytics Weights cache
+*.pt
+
+# Testing & IDE
+.pytest_cache/
+.coverage
+htmlcov/
+.idea/
+.vscode/

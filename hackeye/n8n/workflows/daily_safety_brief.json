@@ -1,0 +1,65 @@
+{
+  "name": "Hack-Eye - Daily Facility Safety Briefing",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Daily 6:00 AM Cron",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/api/analytics",
+        "method": "GET"
+      },
+      "name": "Fetch 24h Hack-Eye Analytics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "subject": "=Hack-Eye Daily Safety Brief - Facility Risk Index: {{ $json.safety_score }}/100",
+        "html": "=<h2>Daily Hack-Eye Facility Intelligence</h2><p>Critical Incidents: <b>{{ $json.critical_incidents_today }}</b></p><p>Near Misses: <b>{{ $json.near_misses_today }}</b></p><p>Highest Risk Zone: <b>{{ $json.highest_risk_zone }}</b></p>"
+      },
+      "name": "Distribute Email Report",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [700, 300]
+    }
+  ],
+  "connections": {
+    "Daily 6:00 AM Cron": {
+      "main": [
+        [
+          {
+            "node": "Fetch 24h Hack-Eye Analytics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch 24h Hack-Eye Analytics": {
+      "main": [
+        [
+          {
+            "node": "Distribute Email Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

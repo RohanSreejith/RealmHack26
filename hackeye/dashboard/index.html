@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hack-Eye — Distributed AI for Predictive Industrial Safety</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ff1744'><path d='M12 2L1 21h22L12 2zm0 3.5L20.5 19H3.5L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z'/></svg>">
+</head>
+<body>
+
+  <!-- Top Navigation / Mission-Control Header -->
+  <header class="top-nav">
+    <div class="brand-section">
+      <div class="logo-badge">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2L1 21h22L12 2zm0 3.5L20.5 19H3.5L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/>
+        </svg>
+        HACK-EYE
+      </div>
+      <div class="facility-tag">
+        FACILITY: <strong>LOGISTICS HUB ALPHA (BAY 2)</strong>
+      </div>
+    </div>
+
+    <div class="status-badges">
+      <div class="badge badge-green" id="edgeStatusBadge">
+        <span class="badge-dot"></span> EDGE NODES: 3/3 ONLINE
+      </div>
+      <div class="badge badge-green" id="cloudStatusBadge">
+        <span class="badge-dot"></span> CLOUD: ONLINE
+      </div>
+      <div class="badge badge-cyan">
+        <span class="badge-dot"></span> AI: READY (ADAPTION)
+      </div>
+      <div class="badge badge-score" id="facilityScoreBadge">
+        RISK INDEX: 88/100
+      </div>
+      <button class="audio-toggle-btn" id="audioToggleBtn" title="Toggle Local Acoustic Siren">
+        🔊 ALARM ACTIVE
+      </button>
+    </div>
+  </header>
+
+  <!-- Demo Control Bar (Judge Presentation Panel) -->
+  <div class="demo-control-bar">
+    <div class="demo-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+      </svg>
+      DEMO CONTROLS:
+    </div>
+    <div class="demo-buttons">
+      <button class="demo-btn" data-scenario="scenario_1_safe">1. SAFE TRANSIT</button>
+      <button class="demo-btn" data-scenario="scenario_2_warning">2. WARNING ZONE</button>
+      <button class="demo-btn active" data-scenario="scenario_3_critical">3. CRITICAL BREACH (TTC &lt; 2s)</button>
+      <button class="demo-btn" data-scenario="scenario_4_converging">4. CONVERGING TRAJECTORY</button>
+      <button class="demo-btn" data-scenario="scenario_5_repeat">5. REPEATED NEAR-MISS</button>
+      <button class="demo-btn" data-scenario="scenario_6_swarm">6. SWARM ZONE HANDOFF</button>
+      <button class="demo-btn cloud-toggle" id="cloudToggleBtn">DISCONNECT CLOUD</button>
+    </div>
+  </div>
+
+  <!-- Main Dashboard Grid -->
+  <main class="dashboard-grid">
+
+    <!-- Column 1: Live Video Feed & Edge Telemetry -->
+    <div class="dash-panel">
+      <div class="panel-header">
+        <h3>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+          </svg>
+          EDGE CAMERA FEED — ZONE 01
+        </h3>
+        <span style="color:var(--text-dim);" id="metricFps">24 FPS</span>
+      </div>
+
+      <div class="panel-body">
+        <div class="video-container" id="videoContainer">
+          <img src="/api/stream/video" alt="Edge CCTV Stream" class="video-element" id="videoStream">
+          
+          <div class="video-hud-overlay">
+            <div class="hud-tag">
+              CALIBRATED GROUND PLANE (3.5m)
+            </div>
+            <div class="local-alert-badge" id="localAlertBadge">
+              🚨 LOCAL ALERT ACTIVE (&lt;10ms)
+            </div>
+          </div>
+        </div>
+
+        <!-- Telemetry Metric Cards -->
+        <div class="metric-row">
+          <div class="metric-card">
+            <div class="label">EST. DISTANCE</div>
+            <div class="value" id="metricDistance">2.4m</div>
+          </div>
+          <div class="metric-card">
+            <div class="label">TIME-TO-COLLISION</div>
+            <div class="value" id="metricTtc">1.6s</div>
+          </div>
+          <div class="metric-card">
+            <div class="label">SAFETY STATE</div>
+            <div class="value" id="metricRisk" style="color:var(--danger-red);">CRITICAL</div>
+          </div>
+        </div>
+
+        <div class="metric-row">
+          <div class="metric-card">
+            <div class="label">WORKERS TRACKED</div>
+            <div class="value" id="metricWorkers">1</div>
+          </div>
+          <div class="metric-card">
+            <div class="label">MACHINERY TRACKED</div>
+            <div class="value" id="metricMachines">1</div>
+          </div>
+          <div class="metric-card">
+            <div class="label">SAFETY ENGINE</div>
+            <div class="value" style="color:var(--safe-green); font-size:14px; margin-top:5px;">DETERMINISTIC</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Column 2: Facility Zone Map & Swarm Coordination -->
+    <div class="dash-panel">
+      <div class="panel-header">
+        <h3>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+          </svg>
+          FACILITY ZONE MAP & SWARM AGENTS
+        </h3>
+        <span style="color:var(--swarm-purple);">3 AGENTS</span>
+      </div>
+
+      <div class="panel-body">
+        <div class="zone-map-container">
+          <div class="zone-box CRITICAL" id="box_ZONE_01">
+            <div class="zone-name">
+              <span>ZONE 01</span>
+              <span style="color:var(--danger-red);">● CRIT</span>
+            </div>
+            <div class="zone-sub">Main Entrance & Crosswalk</div>
+            <div class="zone-vigilance">
+              VIGILANCE: <strong class="zone-vigilance-val">EMERGENCY</strong>
+            </div>
+          </div>
+
+          <div class="zone-box WARNING" id="box_ZONE_02">
+            <div class="zone-name">
+              <span>ZONE 02</span>
+              <span style="color:var(--warning-amber);">● WARN</span>
+            </div>
+            <div class="zone-sub">Forklift Staging Bay</div>
+            <div class="zone-vigilance">
+              VIGILANCE: <strong class="zone-vigilance-val">HEIGHTENED</strong>
+            </div>
+          </div>
+
+          <div class="zone-box SAFE" id="box_ZONE_03">
+            <div class="zone-name">
+              <span>ZONE 03</span>
+              <span style="color:var(--safe-green);">● SAFE</span>
+            </div>
+            <div class="zone-sub">Heavy Haulage Dock</div>
+            <div class="zone-vigilance">
+              VIGILANCE: <strong class="zone-vigilance-val">NORMAL</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-header" style="margin-top:4px; padding:6px 10px;">
+          <h4 style="font-size:11px; color:var(--text-muted);">SWARM INTER-ZONE EVENT BUS</h4>
+        </div>
+        <div class="swarm-feed" id="swarmFeed">
+          <div class="swarm-msg">
+            <strong>[ZONE_01 ➔ ZONE_02]</strong> HAZARD_ALERT <span style="color:var(--text-dim);">(W-017 / F-004 ETA: 2s)</span>
+          </div>
+          <div class="swarm-msg">
+            <strong>[ZONE_02 ➔ ZONE_01]</strong> VIGILANCE_ACK <span style="color:var(--text-dim);">(Speed Governor Set)</span>
+          </div>
+        </div>
+
+        <div class="panel-header" style="margin-top:4px; padding:6px 10px;">
+          <h4 style="font-size:11px; color:var(--text-muted);">RENDER CLOUD WORKFLOW STATE</h4>
+        </div>
+        <div class="workflow-pipeline">
+          <div class="wf-step completed" id="wfStepReceived">
+            <div class="wf-dot"></div>
+            <span>RECEIVED</span>
+          </div>
+          <div class="wf-step completed" id="wfStepProcessing">
+            <div class="wf-dot"></div>
+            <span>PROCESSING</span>
+          </div>
+          <div class="wf-step completed" id="wfStepAi">
+            <div class="wf-dot"></div>
+            <span>AI ANALYSIS</span>
+          </div>
+          <div class="wf-step completed" id="wfStepKnowledge">
+            <div class="wf-dot"></div>
+            <span>KNOWLEDGE</span>
+          </div>
+          <div class="wf-step completed" id="wfStepCompleted">
+            <div class="wf-dot"></div>
+            <span>COMPLETED</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Column 3: Active Incident & AI Intelligence Layer -->
+    <div class="dash-panel">
+      <div class="panel-header">
+        <h3>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M13 14h-2v-4h2v4zm0 4h-2v-2h2v2zm-12 4h22L12 2 1 22z"/>
+          </svg>
+          ACTIVE INCIDENT & AI ANALYSIS
+        </h3>
+        <span id="incRiskBadge" style="color:var(--danger-red); font-weight:bold;">CRITICAL</span>
+      </div>
+
+      <div class="panel-body">
+        <!-- Incident Metadata Summary -->
+        <div style="background-color:var(--bg-surface-elevated); padding:10px; border-radius:4px; font-family:var(--font-mono); font-size:11px; display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+          <div>WORKER: <strong id="incWorker">W-017</strong></div>
+          <div>MACHINE: <strong id="incMachine">F-004 (Forklift)</strong></div>
+          <div>DISTANCE: <strong id="incDist">2.4m</strong></div>
+          <div>TTC: <strong id="incTtc">1.6s</strong></div>
+          <div>ZONE: <strong id="incZone">ZONE_01</strong></div>
+          <div>ALERT: <strong style="color:var(--danger-red);">LOCAL (<5ms)</strong></div>
+        </div>
+
+        <!-- AI Reasoning Card -->
+        <div class="ai-card">
+          <div class="ai-header">
+            <span>AI SAFETY AGENT (ADAPTION)</span>
+            <span id="aiConfidence">CONF: 94%</span>
+          </div>
+          <div class="ai-reason" id="aiReason">
+            Forklift (F-004) and pedestrian (W-017) converging rapidly on a blind corner at entrance. Time-To-Collision (1.6s) is below critical emergency braking threshold.
+          </div>
+
+          <div class="ai-section-title">PREDICTED ESCALATION</div>
+          <div style="font-size:12px; color:#ff8a80;" id="aiPredicted">
+            Imminent crush collision within 1.5 seconds if vehicle or worker does not yield.
+          </div>
+
+          <div class="ai-section-title">CONTRIBUTING FACTORS</div>
+          <ul class="ai-list" id="aiFactors">
+            <li>Blind corner approach at entrance of ZONE_01</li>
+            <li>Ground distance (2.4m) violates 3.0m OSHA safety exclusion buffer</li>
+            <li>Mutual trajectory convergence with relative closing speed of 1.5m/s</li>
+          </ul>
+
+          <div class="ai-section-title">RECOMMENDED ACTIONS</div>
+          <ul class="ai-list" id="aiActions">
+            <li>Sound vehicle horn and apply machine emergency brake override</li>
+            <li>Direct worker W-017 to safety refuge bay immediately</li>
+            <li>Dispatch EHS spotter to entrance intersection</li>
+          </ul>
+        </div>
+
+        <!-- Firecrawl Knowledge Used -->
+        <div class="ai-section-title" style="margin-top:2px;">KNOWLEDGE USED (FIRECRAWL OSHA RETRIEVAL)</div>
+        <div class="knowledge-badge" id="knowledgeCitation">
+          <strong>OSHA 1910.178(n)(4) - Powered Industrial Trucks: Speed and Blind Intersections</strong><br>
+          <span style="color:#aaa;">Source: OSHA General Industry Safety Regulations</span>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Bottom Section: Sub-Second Incident Timeline -->
+  <section class="timeline-section">
+    <div class="timeline-card">
+      <div class="timeline-header">
+        <span style="color:var(--text-muted); font-weight:700;">
+          SUB-SECOND INCIDENT TIMELINE (SEPARATION OF LOCAL SAFETY VS. AI REASONING)
+        </span>
+        <span style="color:var(--safe-green);">FAST-PATH DETERMINISTIC &lt;5ms</span>
+      </div>
+
+      <div class="timeline-track" id="timelineTrack">
+        <div class="timeline-event">
+          <div class="timeline-time">14:32:01.100</div>
+          <div class="timeline-desc">Worker W-017 Detected</div>
+        </div>
+        <div class="timeline-event">
+          <div class="timeline-time">14:32:01.180</div>
+          <div class="timeline-desc">Forklift F-004 Detected</div>
+        </div>
+        <div class="timeline-event">
+          <div class="timeline-time">14:32:01.220</div>
+          <div class="timeline-desc">Tracking & Trajectory Estimated</div>
+        </div>
+        <div class="timeline-event">
+          <div class="timeline-time">14:32:01.240</div>
+          <div class="timeline-desc">TTC = 1.6s (&lt; 2.0s Threshold)</div>
+        </div>
+        <div class="timeline-event local-alert">
+          <div class="timeline-time">14:32:01.245</div>
+          <div class="timeline-desc">🚨 LOCAL ALERT TRIGGERED (&lt;5ms)</div>
+        </div>
+        <div class="timeline-event">
+          <div class="timeline-time">14:32:01.350</div>
+          <div class="timeline-desc">Swarm Alert to Zone 02</div>
+        </div>
+        <div class="timeline-event ai-done">
+          <div class="timeline-time">14:32:02.650</div>
+          <div class="timeline-desc">AI Agent Analysis Complete</div>
+        </div>
+        <div class="timeline-event">
+          <div class="timeline-time">14:32:02.900</div>
+          <div class="timeline-desc">Render Workflow & n8n Done</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script src="/static/js/audio_siren.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

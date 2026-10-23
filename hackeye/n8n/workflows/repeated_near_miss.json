@@ -1,0 +1,59 @@
+{
+  "name": "Hack-Eye - Repeated Near Miss Aggregator & Work Order",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hackeye-near-miss-pattern",
+        "options": {}
+      },
+      "name": "Pattern Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Aggregate incident frequency and determine risk escalation\nconst item = $input.first().json.body;\nreturn [{\n  json: {\n    zone: item.zone,\n    total_incidents: item.incident_count,\n    requires_facility_intervention: item.incident_count >= 3,\n    pattern: item.pattern\n  }\n}];"
+      },
+      "name": "Aggregate Pattern Logic",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "summary": "=Hack-Eye EHS Work Order: Remediate Blind Spot in {{ $json.zone }}",
+        "description": "Recurring safety violations detected by Hack-Eye Swarm Node.\nPattern: {{ $json.pattern }}\nRecorded incidents: {{ $json.total_incidents }}\nRequired Action: Install acoustic warning sensors and floor markings."
+      },
+      "name": "Create Jira/EHS Work-Order",
+      "type": "n8n-nodes-base.jira",
+      "typeVersion": 1,
+      "position": [700, 300]
+    }
+  ],
+  "connections": {
+    "Pattern Webhook": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Pattern Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Pattern Logic": {
+      "main": [
+        [
+          {
+            "node": "Create Jira/EHS Work-Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

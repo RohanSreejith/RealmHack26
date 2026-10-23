@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  hackeye-edge:
+    build: .
+    container_name: hackeye_edge_node
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///hackeye_edge.db
+      - ADAPTION_API_KEY=${ADAPTION_API_KEY:-}
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:-}
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL:-}
+    volumes:
+      - ./videos:/app/videos
+      - ./hackeye_edge.db:/app/hackeye_edge.db
+    restart: unless-stopped
