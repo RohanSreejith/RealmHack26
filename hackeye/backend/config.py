@@ -3,6 +3,8 @@ Hack-Eye Configuration Module
 Centralized settings with environment variable support.
 """
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from pydantic_settings import BaseSettings
 from typing import List
 
@@ -35,7 +37,7 @@ class Settings(BaseSettings):
     FIRECRAWL_API_KEY: str = os.getenv("FIRECRAWL_API_KEY", "")
     FIRECRAWL_API_URL: str = os.getenv("FIRECRAWL_API_URL", "https://api.firecrawl.dev/v1")
     
-    N8N_WEBHOOK_URL: str = os.getenv("N8N_WEBHOOK_URL", "")
+    N8N_WEBHOOK_URL: str = os.getenv("N8N_WEBHOOK_URL", "https://rohansreejith.app.n8n.cloud/webhook-test/hackeye-critical-incident")
     N8N_API_KEY: str = os.getenv("N8N_API_KEY", "")
     
     RENDER_API_KEY: str = os.getenv("RENDER_API_KEY", "")

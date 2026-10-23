@@ -160,6 +160,24 @@ def get_workflow(wf_id: str):
 def get_recent_n8n():
     return n8n_client.get_recent_executions()
 
+@router.post("/n8n/trigger-test")
+def trigger_n8n_test():
+    test_incident = {
+        "incident_id": f"TEST-INC-{int(datetime.now(timezone.utc).timestamp())}",
+        "worker_id": "W-017",
+        "machine_id": "F-004",
+        "machine_type": "forklift",
+        "zone": "ZONE_01",
+        "distance_m": 2.1,
+        "ttc_seconds": 1.5,
+        "risk_level": "CRITICAL"
+    }
+    test_ai = {
+        "reason": "Test trigger dispatched from Hack-Eye to verify n8n webhook connection.",
+        "recommended_actions": ["Verify webhook reception on n8n canvas", "Check node execution status"]
+    }
+    return n8n_client.dispatch_critical_incident(test_incident, test_ai)
+
 from hackeye.backend.services.video_stream import dual_camera_manager, video_processor
 
 # Demo Controller Endpoints

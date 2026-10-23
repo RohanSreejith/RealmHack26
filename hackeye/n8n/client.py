@@ -61,16 +61,21 @@ class N8nClient:
             "payload": payload
         }
 
-        if self.webhook_url:
+        target_url = self.webhook_url or settings.N8N_WEBHOOK_URL
+        if target_url:
             headers = {"Content-Type": "application/json"}
-            if self.api_key:
-                headers["X-N8N-API-KEY"] = self.api_key
+            api_key = self.api_key or settings.N8N_API_KEY
+            if api_key:
+                headers["X-N8N-API-KEY"] = api_key
             try:
                 with httpx.Client(timeout=4.0) as client:
-                    resp = client.post(self.webhook_url, json=payload, headers=headers)
+                    resp = client.post(target_url, json=payload, headers=headers)
+                    record["http_code"] = resp.status_code
                     if resp.status_code in [200, 201, 202]:
                         record["status"] = "WEBHOOK_DELIVERED"
-                        record["http_code"] = resp.status_code
+                    else:
+                        record["status"] = f"N8N_HTTP_{resp.status_code}"
+                        record["response_message"] = resp.text[:250]
             except Exception as e:
                 record["status"] = f"DISPATCH_ERROR_{type(e).__name__}"
 
