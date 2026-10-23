@@ -19,6 +19,7 @@ from hackeye.render.workflow_engine import render_workflow_orchestrator
 from hackeye.n8n.client import n8n_client
 from hackeye.backend.database.db import SessionLocal
 from hackeye.backend.database.models import Incident, SafetyInsight
+from hackeye.ai.agent_graph import PENDING_AI_RULES
 
 class DemoController:
     def __init__(self):
@@ -277,6 +278,57 @@ class DemoController:
                 "workflow_id": wf.workflow_id,
                 "local_alert": True,
                 "details": "Dual synchronized cameras detect forklift impact with storage item/rack structure. Mechanical stoppage and aisle shutdown triggered."
+            }
+
+        # SCENARIO 4 (ALTERNATIVE): Unknown / Novel Safety Behavior (Worker on Storage Boxes)
+        elif scenario_key == "scenario_4_unknown_hazard":
+            inc_dict = {
+                "incident_id": f"INC-UNKNOWN-CLIMB-{int(time.time())}",
+                "worker_id": "W-059 (Material Handler)",
+                "machine_id": "CARGO_PALLET_STACK_04",
+                "machine_type": "elevated_storage",
+                "distance_m": 0.0,
+                "ttc_seconds": None,
+                "risk_level": "WARNING",
+                "zone": "ZONE_04 (High-Bay Storage)",
+                "timestamp": now_str,
+                "confidence": 0.94,
+                "is_converging": False,
+                "closing_velocity_m_s": 0.0,
+                "local_alert_triggered": True
+            }
+            local_queue.persist_incident(inc_dict)
+
+            # Trigger AI Multi-Agent reasoning
+            ai_res = ai_safety_agent.process_incident(inc_dict)
+
+            # Ensure pending rule is surfaced
+            suggested_rule = {
+                "rule_id": f"SUGG-RULE-BOXES-{int(time.time())}",
+                "title": "Prohibit Worker Climbing on Stacked Material",
+                "category": "ELEVATION_FALL_HAZARD",
+                "description": "Workers should not climb or stand on stacked storage boxes without certified fall arrest.",
+                "suggested_threshold": "Elevation > 1.2m on unrated surface",
+                "status": "PENDING_SUPERVISOR_APPROVAL",
+                "proposed_by": "Rule Recommendation Agent (Adaption AI)",
+                "created_at": now_str
+            }
+            # Append if not already present
+            if not any("Climbing" in r.get("title", "") for r in PENDING_AI_RULES):
+                PENDING_AI_RULES.append(suggested_rule)
+
+            wf = render_workflow_orchestrator.trigger_incident_workflow(inc_dict, ai_res)
+
+            return {
+                "scenario": scenario_key,
+                "title": "4. Unknown Hazard: Worker Climbing on Stacked Material",
+                "risk_level": "WARNING",
+                "incident": inc_dict,
+                "ai_analysis": ai_res,
+                "workflow_id": wf.workflow_id,
+                "local_alert": True,
+                "ai_suggested_rule": suggested_rule,
+                "details": "Unrepresented safety situation: worker climbed stacked cargo boxes. AI Multi-Agent graph analyzed context & proposed new safety rule awaiting supervisor approval."
             }
 
         # SCENARIO 5: Near-miss / collision with person

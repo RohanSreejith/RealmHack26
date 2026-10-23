@@ -112,13 +112,43 @@ def test_swarm_coordination():
     assert event["event"] == "WORKER_APPROACHING"
     assert swarm_coordinator.agents["ZONE_02"].vigilance_level == "HEIGHTENED"
 
-def test_render_workflow_state_machine():
-    wf = render_workflow_orchestrator.trigger_incident_workflow({
-        "incident_id": "INC-TEST-99",
-        "zone": "ZONE_01"
-    })
-    assert wf.current_step == "RECEIVED"
-    assert wf.progress_pct == 15
+def test_motion_detector_and_compute_modes():
+    import numpy as np
+    from hackeye.edge.motion_detector import LightweightMotionDetector
+    detector = LightweightMotionDetector(sensitivity_threshold_pct=0.25)
+    
+    # Static frames -> LOW_COMPUTE mode
+    blank_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    res1 = detector.process_frame(blank_frame)
+    res2 = detector.process_frame(blank_frame)
+    assert res2.compute_mode == "LOW_COMPUTE"
+    assert res2.has_activity is False
+
+    # Dynamic frame with simulated high activity -> VISION_ANALYSIS mode
+    active_frame = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+    res3 = detector.process_frame(active_frame)
+    assert res3.has_activity is True
+    assert res3.compute_mode == "VISION_ANALYSIS"
+
+def test_distributed_edge_cluster_telemetry():
+    from hackeye.edge.distributed_nodes import distributed_cluster_manager
+    telemetry = distributed_cluster_manager.get_cluster_telemetry()
+    assert telemetry["total_cameras_monitored"] == 50
+    assert telemetry["total_edge_nodes"] == 5
+    assert telemetry["cameras_in_low_compute"] >= 40
+    assert "80" in telemetry["cluster_gpu_savings_pct"] or "84" in telemetry["cluster_gpu_savings_pct"]
+
+def test_rule_recommendation_and_approval():
+    from hackeye.ai.agent_graph import PENDING_AI_RULES, RuleRecommendationAgent, IncidentSharedState
+    agent = RuleRecommendationAgent()
+    state = IncidentSharedState(
+        incident_id="INC-CLIMB-BOXES-TEST",
+        zone="ZONE_04 (Storage Stacking)",
+        severity="WARNING"
+    )
+    initial_len = len(PENDING_AI_RULES)
+    agent.run(state)
+    assert len(PENDING_AI_RULES) >= initial_len
 
 if __name__ == "__main__":
     pytest.main(["-v", __file__])

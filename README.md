@@ -1,88 +1,101 @@
 # Hack-Eye: AI-Powered Distributed Industrial Safety Intelligence Platform
-> *"Distributed AI for Predictive Industrial Safety"*
+> *"Event-Driven • Distributed • Edge-First • AI-Assisted • Safety-Critical"*
 
-Hack-Eye is an edge-first, distributed safety intelligence platform engineered for construction sites, warehouses, loading bays, and factories. It monitors video/RTSP streams, identifies workers and heavy machinery, and performs real-time trajectory and Time-to-Collision (TTC) calculations.
+Hack-Eye is a distributed edge safety intelligence platform engineered for construction sites, warehouses, logistics centers, and factories. It monitors facility camera streams (50–100 cameras) using horizontal edge inference nodes, identifies workers and heavy machinery, performs real-time trajectory and Time-to-Collision (TTC) calculations, triggers millisecond-deterministic physical alerts, and asynchronously deploys AI multi-agent reasoning for causal explanations, OSHA compliance grounding, and rule recommendations.
 
 ---
 
-## 1. Core Architectural Principle
+## 1. System Design Principles
 
-> **"The system does not wait for an LLM to decide whether an emergency is dangerous."**
+1. **Do not run expensive AI on every frame**: Cameras stream at 25–30 FPS, but evaluating full YOLO object detection on every frame across 50 cameras is wasteful and computationally infeasible.
+2. **Continuously monitor using lightweight processing**: A sub-millisecond motion & activity filter screens frames. Low-activity cameras stay in energy/GPU-efficient LOW_COMPUTE mode (>84% compute savings).
+3. **Use YOLO for event-triggered & periodic perception**: Promoted to vision analysis on meaningful motion, tracker confidence degradation, or periodic refresh (every 8 frames).
+4. **Use ByteTrack to maintain persistent scene state**: Preserves worker and machine trajectories between detections, tracking velocities, estimated distances, and zone boundaries.
+5. **Deterministic rules for immediate safety; AI agents for deep asynchronous reasoning**: The millisecond physical alert path NEVER waits on LLM or cloud roundtrips.
 
-Hack-Eye enforces a dual-path pipeline:
-1. **Fast Safety Path (<50ms, 100% Local & Offline-Resilient)**:
-   $$\text{Camera} \rightarrow \text{YOLO} \rightarrow \text{Multi-Object Tracker} \rightarrow \text{TTC Engine} \rightarrow \text{Deterministic Safety Rules} \rightarrow \text{Local Siren / HUD Alert}$$
-   Operates entirely at the edge without cloud or internet dependencies.
-2. **AI Intelligence Path (Asynchronous Orchestration)**:
-   $$\text{Structured Event} \rightarrow \text{AI Safety Agent (Adaption)} \rightarrow \text{OSHA Guidance (Firecrawl)} \rightarrow \text{Swarm Gossip} \rightarrow \text{n8n Workflows} \rightarrow \text{Render}$$
-   Provides root-cause analysis, escalation prediction, regulatory grounding, and long-term facility safety analytics.
+---
+
+## 2. Technical Architecture Diagram
 
 ```
-                    ┌────────────────────────────────────────────────────────┐
-                    │                 EDGE CAMERA / VIDEO FEED               │
-                    └───────────────────────────┬────────────────────────────┘
-                                                │ 30 FPS Stream
-                                                ▼
-                                   ┌─────────────────────────┐
-                                   │   YOLO OBJECT DETECTOR  │
-                                   │  (Worker / Forklift /   │
-                                   │   Truck / Excavator)    │
-                                   └────────────┬────────────┘
-                                                │ Detected BBoxes + Classes
-                                                ▼
-                                   ┌─────────────────────────┐
-                                   │   MULTI-OBJECT TRACKER  │
-                                   │  (Persistent IDs: W-01, │
-                                   │   F-04, Velocities)     │
-                                   └────────────┬────────────┘
-                                                │
-                        ┌───────────────────────┴───────────────────────┐
-                        ▼                                               ▼
-           [FAST SAFETY PATH: <50ms]                       [AI INTELLIGENCE PATH: ASYNC]
-       (100% Local, Offline-Resilient)                     (Deep Reasoning & Orchestration)
-                        │                                               │
-                        ▼                                               │
-     ┌─────────────────────────────────────┐                            │
-     │    GEOMETRY, DISTANCE & TTC ENGINE  │                            │
-     │  - Estimated Ground-Plane Distance  │                            │
-     │  - Closing Velocity Vector          │                            │
-     │  - Time-To-Collision (TTC) Calc     │                            │
-     └──────────────────┬──────────────────┘                            │
-                        ▼                                               │
-     ┌─────────────────────────────────────┐                            │
-     │     DETERMINISTIC SAFETY ENGINE     │                            │
-     │  - Warning Radius (<6m) / TTC <4s   │                            │
-     │  - Critical Radius (<3m) / TTC <2s  │                            │
-     │  - Persistence Filter (3+ frames)   │                            │
-     └──────────────────┬──────────────────┘                            │
-                        ▼                                               │
-     ┌─────────────────────────────────────┐                            │
-     │    IMMEDIATE LOCAL ALERTS & LOG     │                            │
-     │  - Local Siren / Audio Alarm (<10ms)│                            │
-     │  - Red HUD Flashing UI Overlay      │                            │
-     │  - Local SQLite Event Queue         │                            │
-     └──────────────────┬──────────────────┘                            │
-                        │                                               │
-                        │ Confirmed Safety Incident Event               │
-                        └───────────────────────┬───────────────────────┘
-                                                ▼
-                               ┌───────────────────────────────────┐
-                               │    SAFETY EVENT BUILDER & QUEUE   │
-                               │ (Structured JSON Metadata Buffer) │
-                               └────────────────┬──────────────────┘
-                                                │
-           ┌────────────────────────────────────┼────────────────────────────────────┐
-           ▼                                    ▼                                    ▼
-  ┌───────────────────┐               ┌───────────────────┐               ┌───────────────────────┐
-  │ SWARM COORDINATOR │               │   AI SAFETY AGENT │               │ RENDER & n8n CLOUD    │
-  │ (Inter-Zone Alert)│               │  (Adaption LLM)   │               │ (Operational Workflow)│
-  ├───────────────────┤               ├───────────────────┤               ├───────────────────────┤
-  │ - Zone 01 -> 02   │               │ - Causal Analysis │               │ - Render Workflow     │
-  │ - Approaching ETA │               │ - Escalation Risk │               │ - Postgres Sync       │
-  │ - Peer Zone Alert │               │ - Action Recs     │               │ - Webhook Alert       │
-  └───────────────────┘               │ - Firecrawl OSHA  │               │ - Daily Briefing      │
-                                      │   Knowledge Base  │               └───────────────────────┘
-                                      └───────────────────┘
+[50–100 CCTV CAMERAS IN LARGE INDUSTRIAL FACILITY]
+          │
+          ├── Cameras 01–10 ──► [EDGE INFERENCE NODE 01 (Orin/RTX Gateway)]
+          ├── Cameras 11–20 ──► [EDGE INFERENCE NODE 02 (Orin/RTX Gateway)]
+          ├── Cameras 21–30 ──► [EDGE INFERENCE NODE 03 (Orin/RTX Gateway)]
+          ├── Cameras 31–40 ──► [EDGE INFERENCE NODE 04 (Orin/RTX Gateway)]
+          └── Cameras 41–50 ──► [EDGE INFERENCE NODE 05 (Orin/RTX Gateway)]
+                                    │
+                                    ▼
+       ┌─────────────────────────────────────────────────────────────┐
+       │   STAGE 1: LIGHTWEIGHT MOTION / ACTIVITY DETECTOR (<1ms)   │
+       │   - Frame differencing & MOG2 thumbnail background model   │
+       │   - Inactive: Stays in LOW_COMPUTE mode (85% GPU saved)    │
+       │   - Active: Promotes camera to VISION_ANALYSIS mode        │
+       └────────────────────────────┬────────────────────────────────┘
+                                    │ Meaningful Activity Detected
+                                    ▼
+       ┌─────────────────────────────────────────────────────────────┐
+       │   STAGE 2: EVENT-TRIGGERED YOLO OBJECT DETECTOR             │
+       │   - Detects: worker, forklift, truck, excavator, boxes      │
+       │   - Runs on activity onset, confidence drop, or 8-frame loop│
+       └────────────────────────────┬────────────────────────────────┘
+                                    │ Detections & BBoxes
+                                    ▼
+       ┌─────────────────────────────────────────────────────────────┐
+       │   STAGE 3: BYTETRACK OBJECT TRACKER & PERSISTENT SCENE STATE│
+       │   - Persistent track IDs (e.g. Worker #17, Forklift #04)   │
+       │   - Smoothed velocity propagation & trajectory vectors      │
+       │   - Distance calculation (2.1m) & Time-to-Collision (TTC)   │
+       └────────────────────────────┬────────────────────────────────┘
+                                    │ Tracked Scene State
+                                    ▼
+       ┌─────────────────────────────────────────────────────────────┐
+       │   STAGE 4: DETERMINISTIC SAFETY ENGINE (<5ms Fast Path)     │
+       │   - Worker too close to moving machine (<3m radius, moving) │
+       │   - Restricted zone / crane footprint boundary violation    │
+       │   - Unsafe storage box stacking & height limits (>2.2m)     │
+       │   - Hysteresis & temporal confirmation (anti-false-positive)│
+       └───────────────────┬─────────────────────────────────────────┘
+                           │
+        ┌──────────────────┴────────────────────────────────┐
+        ▼                                                   ▼
+ [FAST SAFETY PATH (<5ms)]                         [SAFETY INCIDENT EVENT]
+ (100% Local & Offline)                            (Structured JSON State)
+        │                                                   │
+        ▼                                                   ▼
+ ┌───────────────────────────────┐                 ┌─────────────────────────────────┐
+ │ PHYSICAL ALERT DEVICE         │                 │ ASYNC EVENT ORCHESTRATION       │
+ │ (Raspberry Pi / ESP32 Node)   │                 │ (n8n Webhook / Render Workflow) │
+ │ - Acoustic Strobe Siren       │                 └────────────────┬────────────────┘
+ │ - Directional LED Beacon      │                                  │
+ │ - OLED Hazard Display Text    │                                  ▼
+ │ - Zone Spatial Audio Warning  │                 ┌─────────────────────────────────┐
+ └───────────────────────────────┘                 │ 6-AGENT MULTI-AGENT GRAPH       │
+                                                   │ (Unified IncidentSharedState)   │
+                                                   └────────────────┬────────────────┘
+                                                                    │
+           ┌─────────────────────┬───────────────────┬──────────────┴──────┬──────────────────┐
+           ▼                     ▼                   ▼                     ▼                  ▼
+ ┌───────────────────┐ ┌───────────────────┐ ┌───────────────┐ ┌───────────────────────┐ ┌─────────────────────┐
+ │ 1. Safety         │ │ 2. Pattern &      │ │ 3. Safety     │ │ 5. Rule Recommendation│ │ 6. Reporting &      │
+ │    Knowledge Agent│ │    Trend Agent    │ │    Analysis   │ │    Agent              │ │    Notification     │
+ │ - Firecrawl OSHA  │ │ - Historical Edge │ │    Agent      │ │ - Identifies novel    │ │    Agent            │
+ │   Regulations &   │ │   SQLite Pattern  │ │ - Adaption AI │ │   hazards (boxes/climb│ │ - n8n Supervisor   │
+ │   Safety Standards│ │   Correlation     │ │   Causal Root-│ │ - Proposes candidate │ │   Escalation        │
+ └───────────────────┘ └───────────────────┘ │   Cause Risk  │ │   rules for HUMAN     │ │ - Render Persistence│
+                                             └───────────────┘ │   APPROVAL (no silent │ └─────────────────────┘
+                                                               │   production changes!)│
+                                                               └───────────────────────┘
+                                                                            │
+                                                                            ▼
+                                                               ┌─────────────────────────┐
+                                                               │ SUPERVISOR DASHBOARD    │
+                                                               │ - Live Feeds & Telemetry│
+                                                               │ - Cluster GPU Savings   │
+                                                               │ - AI Rule Approval Modal│
+                                                               │ - Incident Audit Trails │
+                                                               └─────────────────────────┘
 ```
 
 ---

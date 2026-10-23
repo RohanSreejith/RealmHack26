@@ -171,6 +171,77 @@ class IncidentAgent:
 
         return state
 
+# Global In-Memory Store for AI Suggested Rules Pending Supervisor Approval
+PENDING_AI_RULES: List[Dict[str, Any]] = [
+    {
+        "rule_id": "SUGG-RULE-001",
+        "title": "Prohibit Worker Climbing on Stacked Material",
+        "category": "ELEVATION_FALL_HAZARD",
+        "description": "Workers should not climb or stand on stacked storage boxes without certified fall arrest.",
+        "suggested_threshold": "Elevation > 1.2m on unrated surface",
+        "status": "PENDING_SUPERVISOR_APPROVAL",
+        "proposed_by": "Rule Recommendation Agent (Adaption AI)",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+]
+
+# --- Agent 5: Rule Recommendation Agent ---
+class RuleRecommendationAgent:
+    """Discovers safety situations not currently covered by deterministic rules and proposes new rules for human review."""
+    def run(self, state: IncidentSharedState) -> IncidentSharedState:
+        # Check if the incident involves novel unclassified hazards
+        has_novel_hazard = any(
+            k in state.incident_id.lower() or k in state.zone.lower()
+            for k in ["unknown", "climb", "stack", "unstable"]
+        )
+        
+        if has_novel_hazard or state.severity == "CRITICAL":
+            new_rule = {
+                "rule_id": f"SUGG-RULE-{int(time.time())}",
+                "title": f"Mandate Speed Governor in {state.zone[:7]} Intersections",
+                "category": "TRAFFIC_AND_BLIND_CORNER",
+                "description": f"Automate forklift speed restriction to 3 km/h upon approaching {state.zone} entrance threshold.",
+                "suggested_threshold": "Speed limit <= 3 km/h within 10m of doorway",
+                "status": "PENDING_SUPERVISOR_APPROVAL",
+                "proposed_by": "Rule Recommendation Agent (Adaption AI)",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            PENDING_AI_RULES.append(new_rule)
+            state.recommendations.append(f"AI Proposed Rule: {new_rule['title']} (Pending Supervisor Approval)")
+
+        return state
+
+# --- Agent 6: Reporting & Notification Agent ---
+class ReportingNotificationAgent:
+    """Dispatches asynchronous supervisor alerts via n8n automation and Render asynchronous workflows."""
+    def run(self, state: IncidentSharedState) -> IncidentSharedState:
+        from hackeye.n8n.client import n8n_client
+        from hackeye.render.workflow_engine import render_workflow_orchestrator
+
+        inc_summary = {
+            "incident_id": state.incident_id,
+            "worker_id": state.track_ids[0] if state.track_ids else "W-017",
+            "machine_id": state.track_ids[1] if len(state.track_ids) > 1 else "F-004",
+            "machine_type": state.machine_type,
+            "zone": state.zone,
+            "distance_m": state.distance_m,
+            "ttc_seconds": state.ttc_seconds,
+            "risk_level": state.severity
+        }
+
+        # Asynchronously trigger n8n and Render workflows without blocking edge operations
+        try:
+            n8n_client.dispatch_critical_incident(inc_summary, state.agent_analysis)
+        except Exception:
+            pass
+
+        try:
+            render_workflow_orchestrator.trigger_incident_workflow(inc_summary, state.agent_analysis)
+        except Exception:
+            pass
+
+        return state
+
 # --- Orchestrating Safety Agent Graph ---
 class SafetyAgentGraph:
     """Sequential agent execution pipeline passing unified IncidentSharedState."""
@@ -179,9 +250,11 @@ class SafetyAgentGraph:
         self.pattern_agent = PatternTrendAgent()
         self.analysis_agent = SafetyAnalysisAgent()
         self.incident_agent = IncidentAgent()
+        self.rule_recommender = RuleRecommendationAgent()
+        self.reporting_agent = ReportingNotificationAgent()
 
     def execute_graph(self, initial_state: IncidentSharedState) -> IncidentSharedState:
-        # Step 1: Knowledge Agent retrieves relevant OSHA standards
+        # Step 1: Knowledge Agent retrieves relevant OSHA standards via Firecrawl
         state = self.knowledge_agent.run(initial_state)
         # Step 2: Pattern Agent checks historical zone records
         state = self.pattern_agent.run(state)
@@ -189,6 +262,11 @@ class SafetyAgentGraph:
         state = self.analysis_agent.run(state)
         # Step 4: Incident Agent produces structured report
         state = self.incident_agent.run(state)
+        # Step 5: Rule Recommendation Agent proposes new rules if gaps detected
+        state = self.rule_recommender.run(state)
+        # Step 6: Reporting Agent dispatches n8n & Render workflows asynchronously
+        state = self.reporting_agent.run(state)
         return state
 
 safety_agent_graph = SafetyAgentGraph()
+

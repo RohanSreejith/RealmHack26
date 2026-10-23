@@ -100,7 +100,7 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         const res = await fetch(`/api/demo/scenario/${scenario}`, { method: "POST" });
         const data = await res.json();
-        console.log("[HAWK Scenario Activated]:", data);
+        console.log("[HACK-EYE Scenario Activated]:", data);
         activeIncidentData = data;
 
         // Refresh streams
@@ -434,6 +434,126 @@ document.addEventListener("DOMContentLoaded", () => {
 
   setInterval(pollPhysicalNodes, 2000);
   pollPhysicalNodes();
+
+  // --- 11. Distributed Edge Inference Cluster Telemetry Polling ---
+  const clusterNodesVal = document.getElementById("clusterNodesVal");
+  const clusterLowCompVal = document.getElementById("clusterLowCompVal");
+  const clusterVisionVal = document.getElementById("clusterVisionVal");
+  const clusterSavingsVal = document.getElementById("clusterSavingsVal");
+
+  async function pollClusterTelemetry() {
+    try {
+      const res = await fetch("/api/cluster/nodes");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (clusterNodesVal) clusterNodesVal.textContent = `${data.total_edge_nodes || 5} Edge Nodes (${data.total_cameras_monitored || 50} Cams)`;
+      if (clusterLowCompVal) clusterLowCompVal.textContent = `${data.cameras_in_low_compute || 42} Cams (<1ms Activity Filter)`;
+      if (clusterVisionVal) clusterVisionVal.textContent = `${data.cameras_in_vision_analysis || 8} Cams (YOLO + ByteTrack)`;
+      if (clusterSavingsVal) clusterSavingsVal.textContent = data.cluster_gpu_savings_pct || "84.0%";
+    } catch (e) {
+      // Offline fallback
+    }
+  }
+  setInterval(pollClusterTelemetry, 3000);
+  pollClusterTelemetry();
+
+  // --- 12. Human-in-the-Loop AI Suggested Rules (Pending Review) ---
+  const pendingRulesModal = document.getElementById("pendingRulesModal");
+  const openPendingRulesBtn = document.getElementById("openPendingRulesBtn");
+  const pendingRulesModalCloseBtn = document.getElementById("pendingRulesModalCloseBtn");
+  const pendingRulesModalDismissBtn = document.getElementById("pendingRulesModalDismissBtn");
+  const pendingRulesList = document.getElementById("pendingRulesList");
+  const pendingRulesBadge = document.getElementById("pendingRulesBadge");
+
+  const openPendingRules = () => {
+    fetchPendingRules();
+    if (pendingRulesModal) pendingRulesModal.classList.add("active");
+  };
+  const closePendingRules = () => {
+    if (pendingRulesModal) pendingRulesModal.classList.remove("active");
+  };
+
+  if (openPendingRulesBtn) openPendingRulesBtn.addEventListener("click", openPendingRules);
+  if (pendingRulesModalCloseBtn) pendingRulesModalCloseBtn.addEventListener("click", closePendingRules);
+  if (pendingRulesModalDismissBtn) pendingRulesModalDismissBtn.addEventListener("click", closePendingRules);
+
+  async function fetchPendingRules() {
+    try {
+      const res = await fetch("/api/rules/pending");
+      if (!res.ok) return;
+      const rules = await res.json();
+
+      const pendingOnly = rules.filter(r => r.status === "PENDING_SUPERVISOR_APPROVAL");
+      if (pendingRulesBadge) pendingRulesBadge.textContent = pendingOnly.length;
+
+      if (!pendingRulesList) return;
+
+      if (rules.length === 0) {
+        pendingRulesList.innerHTML = `<div style="padding:16px; text-align:center; color:#64748B;">No candidate rules currently proposed.</div>`;
+        return;
+      }
+
+      pendingRulesList.innerHTML = rules.map(r => {
+        const isApproved = r.status === "APPROVED_BY_SUPERVISOR";
+        const isRejected = r.status === "REJECTED_BY_SUPERVISOR";
+
+        return `
+          <div style="background:#FFFFFF; border:1px solid ${isApproved ? '#86EFAC' : (isRejected ? '#FCA5A5' : '#FCD34D')}; border-radius:10px; padding:14px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+              <div>
+                <strong style="font-size:14px; color:#1E293B;">${r.title}</strong>
+                <span style="display:inline-block; margin-left:8px; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; background:#EFF6FF; color:#1D4ED8;">${r.category}</span>
+              </div>
+              <span style="font-size:11px; padding:2px 8px; border-radius:4px; font-weight:600; ${isApproved ? 'background:#DCFCE7; color:#166534;' : (isRejected ? 'background:#FEE2E2; color:#991B1B;' : 'background:#FEF3C7; color:#92400E;')}">
+                ${r.status.replace(/_/g, ' ')}
+              </span>
+            </div>
+            <p style="font-size:13px; color:#475569; margin-bottom:8px; line-height:1.4;">${r.description}</p>
+            <div style="font-size:12px; color:#64748B; margin-bottom:12px;">
+              <span>Suggested Threshold: <strong style="color:#1E293B;">${r.suggested_threshold}</strong></span> • 
+              <span>Source: ${r.proposed_by}</span>
+            </div>
+            ${(!isApproved && !isRejected) ? `
+              <div style="display:flex; gap:8px;">
+                <button onclick="approveRule('${r.rule_id}')" style="background:#16A34A; color:#FFFFFF; border:none; border-radius:6px; padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer;">
+                  ✓ Approve into Deterministic Engine
+                </button>
+                <button onclick="rejectRule('${r.rule_id}')" style="background:#F1F5F9; color:#475569; border:1px solid #CBD5E1; border-radius:6px; padding:6px 12px; font-size:12px; cursor:pointer;">
+                  Reject
+                </button>
+              </div>
+            ` : (isApproved ? `<div style="font-size:12px; color:#166534; font-weight:600;">✓ In active deterministic enforcement at Edge Gateway.</div>` : '')}
+          </div>
+        `;
+      }).join("");
+
+    } catch (e) {
+      console.error("Failed to fetch pending rules:", e);
+    }
+  }
+
+  window.approveRule = async (ruleId) => {
+    try {
+      const res = await fetch(`/api/rules/pending/${ruleId}/approve`, { method: "POST" });
+      const data = await res.json();
+      alert(`Rule Approved! "${data.rule.title}" has been incorporated into active deterministic constraints.`);
+      fetchPendingRules();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  window.rejectRule = async (ruleId) => {
+    try {
+      await fetch(`/api/rules/pending/${ruleId}/reject`, { method: "POST" });
+      fetchPendingRules();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Initial fetch of pending rules count
+  fetchPendingRules();
 
   // Load initial scenario 1 on startup
   fetch("/api/demo/scenario/scenario_1_entrance", { method: "POST" })

@@ -23,6 +23,8 @@ from hackeye.render.workflow_engine import render_workflow_orchestrator
 from hackeye.n8n.client import n8n_client
 from hackeye.edge.safety_rules import safety_constraint_engine
 from hackeye.edge.physical_nodes import physical_node_manager
+from hackeye.edge.motion_detector import LightweightMotionDetector
+from hackeye.edge.scene_state import ByteTrackSceneManager, SceneState
 
 # 6 Pre-configured Scenarios with Dual Camera Pairs
 SCENARIO_CONFIGS = {
@@ -62,6 +64,15 @@ SCENARIO_CONFIGS = {
         "hazard_type": "OBJECT_COLLISION",
         "details": "Synchronized perspectives detect machinery impacting industrial racking structure. Immediate mechanical stoppage and inspection triggered."
     },
+    "scenario_4_unknown_hazard": {
+        "title": "Novel Hazard: Worker Standing/Climbing on Stacked Cargo",
+        "cam_a": "videos/videos/box-rgb-00000/0002111d95f87b322197_run_5_seed_1615594951.cam_00.rgb.mp4",
+        "cam_b": "videos/videos/box-rgb-00000/0002111d95f87b322197_run_5_seed_1615594951.cam_01.rgb.mp4",
+        "zone_a": "ZONE_04 (Stacking Bay)",
+        "zone_b": "ZONE_04 (Aisle 04)",
+        "hazard_type": "UNSAFE_STACK_CLIMB",
+        "details": "Unrepresented hazard: worker climbing stacked pallets without fall arrest. Triggers AI Rule Recommendation Agent proposal."
+    },
     "scenario_5_person_nearmiss": {
         "title": "Critical Incident: Near-Miss / Collision with Pedestrian",
         "cam_a": "videos/videos/nearmiss-rgb-00000/001e53453441935632ae_run_1_seed_1288693302.ceiling_00.rgb.mp4",
@@ -89,9 +100,8 @@ class CameraStreamNode:
         self.node_id = node_id
         self.video_path = default_video
         self.zone_label = zone_label
-        self.detector = ObjectDetector(model_path="yolov8n.pt", conf_thresh=0.15)
-        self.tracker = ObjectTracker(pixels_per_meter=settings.PIXELS_PER_METER_DEFAULT)
-        self.ttc_engine = TTCEngine(pixels_per_meter=settings.PIXELS_PER_METER_DEFAULT)
+        self.motion_detector = LightweightMotionDetector(sensitivity_threshold_pct=0.25)
+        self.scene_manager = ByteTrackSceneManager(self.node_id, self.zone_label, yolo_refresh_interval=8)
         self.safety_engine = DeterministicSafetyEngine(zone=zone_label[:7])
 
         self.cap: Optional[cv2.VideoCapture] = None
@@ -108,6 +118,8 @@ class CameraStreamNode:
             "node_id": self.node_id,
             "zone": self.zone_label,
             "status": "SAFE",
+            "compute_mode": "LOW_COMPUTE",
+            "compute_savings": "85.0%",
             "active_tracks": [],
             "proximities": [],
             "active_incident": None,
@@ -124,6 +136,7 @@ class CameraStreamNode:
             if zone_label:
                 self.zone_label = zone_label
             self.hazard_tag = hazard_tag
+            self.motion_detector.reset()
 
             if self.cap:
                 self.cap.release()
@@ -176,29 +189,20 @@ class CameraStreamNode:
 
         start_time = time.time()
 
-        # 1. Run Object Detection
-        detections = self.detector.detect(frame)
+        # 1. First-Stage Lightweight Motion & Activity Detection (<1ms)
+        # Avoids expensive YOLO inference when there is no significant scene activity
+        activity_result = self.motion_detector.process_frame(frame)
 
-        # 2. Update Multi-Object Tracker
-        tracks = self.tracker.update(detections, start_time)
+        # 2. Update Persistent Scene State via ByteTrack (runs YOLO only when activity or periodic refresh)
+        scene = self.scene_manager.update(frame, has_activity=activity_result.has_activity)
+        tracks = scene.active_tracks
+        proximities = scene.proximities
 
-        # Classify entities
-        workers = [t for t in tracks if t.industrial_type == "worker"]
-        machinery = [t for t in tracks if t.industrial_type in ["forklift", "truck", "excavator"]]
-        obstacles = [t for t in tracks if t.industrial_type in ["hazard_obstacle", "obstacle", "cart"]]
+        workers = scene.workers
+        machinery = scene.machinery
+        obstacles = scene.obstacles
 
-        # 3. Compute Proximity & TTC
-        proximities: List[ProximityAnalysis] = []
-        for worker in workers:
-            for machine in machinery:
-                prox = self.ttc_engine.compute_proximity(worker, machine)
-                proximities.append(prox)
-        for obstacle in obstacles:
-            for machine in machinery:
-                prox = self.ttc_engine.compute_proximity(obstacle, machine)
-                proximities.append(prox)
-
-        # 4. Deterministic Safety Evaluation
+        # 3. Deterministic Safety Evaluation
         incidents = self.safety_engine.evaluate(proximities)
         active_incident = incidents[0] if incidents else None
 
@@ -248,7 +252,7 @@ class CameraStreamNode:
             self.last_incident_time = time.time()
             target_entity = workers[0] if workers else (obstacles[0] if obstacles else None)
             inc_dict = {
-                "incident_id": f"INC-SWARM-{int(time.time())}",
+                "incident_id": f"INC-HACKEYE-{int(time.time())}",
                 "worker_id": target_entity.track_id if target_entity else "W-017",
                 "machine_id": machinery[0].track_id if machinery else "F-004",
                 "machine_type": "forklift" if machinery else "general_hazard",
@@ -262,8 +266,8 @@ class CameraStreamNode:
             }
             local_queue.persist_incident(inc_dict)
 
-        # 5. Render HUD Overlays onto frame
-        self._render_hud(frame, tracks, proximities, is_critical, is_warning)
+        # 4. Render HUD Overlays onto frame with compute mode indicator
+        self._render_hud(frame, tracks, proximities, is_critical, is_warning, scene.compute_mode, scene.compute_savings_pct)
 
         # Update Telemetry State
         overall_status = "CRITICAL" if is_critical else ("WARNING" if is_warning else "SAFE")
@@ -274,6 +278,8 @@ class CameraStreamNode:
             "node_id": self.node_id,
             "zone": self.zone_label,
             "status": overall_status,
+            "compute_mode": scene.compute_mode,
+            "compute_savings": f"{scene.compute_savings_pct}%",
             "active_tracks": [t.to_dict() for t in tracks],
             "proximities": [p.to_dict() for p in proximities],
             "active_incident": active_incident.to_dict() if active_incident else None,
@@ -286,18 +292,28 @@ class CameraStreamNode:
         _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
         return buffer.tobytes()
 
-    def _render_hud(self, frame: np.ndarray, tracks: List[TrackedObject], proximities: List[ProximityAnalysis], is_critical: bool, is_warning: bool):
+    def _render_hud(self, frame: np.ndarray, tracks: List[TrackedObject], proximities: List[ProximityAnalysis], is_critical: bool, is_warning: bool, compute_mode: str = "LOW_COMPUTE", compute_savings_pct: float = 85.0):
         COLOR_SAFE = (0, 220, 100)      # Clean Green
         COLOR_WARN = (0, 200, 255)      # Amber Yellow
         COLOR_CRIT = (30, 30, 255)      # Bright Red
         COLOR_FORKLIFT = (255, 175, 0)  # Bright Cyan/Sky-Blue in BGR
         COLOR_CART = (0, 215, 255)      # Industrial Yellow in BGR
         COLOR_FIRE = (0, 100, 255)      # Bright Orange
+        COLOR_LOW_COMP = (120, 200, 80) # Soft Green
+        COLOR_VISION = (230, 150, 40)   # Blue/Azure
 
         # 1. Camera Node Badge
         cv2.rectangle(frame, (10, 10), (220, 38), (15, 20, 30), -1)
         cv2.rectangle(frame, (10, 10), (220, 38), (50, 70, 95), 1)
         cv2.putText(frame, f"{self.node_id}: {self.zone_label}", (16, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 255, 255), 1, cv2.LINE_AA)
+
+        # 1b. Edge Compute Mode Badge (Top-Right)
+        w_frame = frame.shape[1]
+        badge_text = f"{compute_mode} (GPU SAVED {compute_savings_pct}%)" if compute_mode == "LOW_COMPUTE" else f"VISION ACTIVE (YOLO+BYTETRACK)"
+        badge_col = COLOR_LOW_COMP if compute_mode == "LOW_COMPUTE" else COLOR_VISION
+        cv2.rectangle(frame, (w_frame - 310, 10), (w_frame - 10, 38), (15, 20, 30), -1)
+        cv2.rectangle(frame, (w_frame - 310, 10), (w_frame - 10, 38), badge_col, 1)
+        cv2.putText(frame, badge_text, (w_frame - 302, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.38, badge_col, 1, cv2.LINE_AA)
 
         # 2. Draw tracks
         for trk in tracks:
@@ -342,8 +358,8 @@ class CameraStreamNode:
         # 4. Special Scenario Banners
         if self.hazard_tag == "FIRE_EMERGENCY":
             cv2.rectangle(frame, (0, 0), (frame.shape[1]-1, frame.shape[0]-1), COLOR_FIRE, 6)
-            cv2.putText(frame, "SWARM ALERT: OPTICAL FIRE SIGNATURE DETECTED", (20, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 0, 0), 4)
-            cv2.putText(frame, "SWARM ALERT: OPTICAL FIRE SIGNATURE DETECTED", (20, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.65, COLOR_FIRE, 2)
+            cv2.putText(frame, "HACK-EYE ALERT: OPTICAL FIRE SIGNATURE DETECTED", (20, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 0, 0), 4)
+            cv2.putText(frame, "HACK-EYE ALERT: OPTICAL FIRE SIGNATURE DETECTED", (20, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.65, COLOR_FIRE, 2)
         elif self.hazard_tag == "PPE_NO_HELMET_VIOLATION":
             cv2.rectangle(frame, (0, 0), (frame.shape[1]-1, frame.shape[0]-1), COLOR_WARN, 4)
             cv2.putText(frame, "PPE VIOLATION: NO HELMET / HARD HAT", (20, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 4)

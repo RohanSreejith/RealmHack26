@@ -244,7 +244,8 @@ def get_single_frame(cam: str = "cam_a"):
 # --- Configurable Safety Rules API ---
 from hackeye.edge.safety_rules import safety_constraint_engine, FacilitySafetyRulesConfig
 from hackeye.edge.physical_nodes import physical_node_manager
-from hackeye.ai.agent_graph import safety_agent_graph
+from hackeye.ai.agent_graph import safety_agent_graph, PENDING_AI_RULES
+from hackeye.edge.distributed_nodes import distributed_cluster_manager
 
 @router.get("/rules/config")
 def get_safety_rules_config():
@@ -261,7 +262,57 @@ def update_safety_rules_config(payload: Dict[str, Any]):
         "config": updated.model_dump()
     }
 
-# --- Physical Safety Nodes (Swarm Response Hardware Layer) ---
+# --- Human-in-the-Loop AI Suggested Rules (Scenario 4) ---
+@router.get("/rules/pending")
+def get_pending_rules():
+    """Returns list of novel rules suggested by Rule Recommendation Agent, awaiting supervisor review."""
+    return PENDING_AI_RULES
+
+@router.post("/rules/pending/{rule_id}/approve")
+def approve_pending_rule(rule_id: str):
+    """Supervisor approves AI-suggested rule into active deterministic constraints."""
+    target_rule = None
+    for rule in PENDING_AI_RULES:
+        if rule.get("rule_id") == rule_id:
+            target_rule = rule
+            break
+    if not target_rule:
+        raise HTTPException(status_code=404, detail="Rule proposal not found")
+    
+    target_rule["status"] = "APPROVED_BY_SUPERVISOR"
+    target_rule["approved_at"] = datetime.now(timezone.utc).isoformat()
+
+    # Dynamically inject into safety constraint engine if stacking or custom threshold
+    if "climb" in target_rule.get("description", "").lower() or "stack" in target_rule.get("description", "").lower():
+        safety_constraint_engine.update_from_dict({"stacking_hazard_monitoring_enabled": True, "max_pallet_stack_height_m": 2.2})
+
+    return {
+        "status": "approved",
+        "message": f"Rule {rule_id} approved and incorporated into active deterministic constraints.",
+        "rule": target_rule
+    }
+
+@router.post("/rules/pending/{rule_id}/reject")
+def reject_pending_rule(rule_id: str):
+    """Supervisor rejects AI-suggested rule."""
+    target_rule = None
+    for rule in PENDING_AI_RULES:
+        if rule.get("rule_id") == rule_id:
+            target_rule = rule
+            break
+    if not target_rule:
+        raise HTTPException(status_code=404, detail="Rule proposal not found")
+    
+    target_rule["status"] = "REJECTED_BY_SUPERVISOR"
+    return {"status": "rejected", "rule": target_rule}
+
+# --- Distributed Edge Inference Cluster Telemetry (50-100 Cameras) ---
+@router.get("/cluster/nodes")
+def get_cluster_nodes():
+    """Returns distributed edge cluster telemetry across horizontal edge nodes."""
+    return distributed_cluster_manager.get_cluster_telemetry()
+
+# --- Physical Safety Nodes (Response Hardware Layer) ---
 @router.get("/nodes")
 def get_physical_nodes():
     """Returns real-time status of physical response nodes (ESP32 / Raspberry Pi)."""
@@ -281,7 +332,7 @@ def get_agent_graph_info():
     """Returns specification and state of the multi-agent graph architecture."""
     return {
         "architecture": "LangGraph-Style Structured State Multi-Agent Graph",
-        "critical_path_separation": "Fast Path (<5ms deterministic) vs Intelligence Path (async agentic reasoning)",
+        "critical_path_separation": "Fast Path (<5ms deterministic) vs Intelligence Path (asynchronous multi-agent reasoning)",
         "agents": [
             {
                 "name": "Safety Knowledge Agent",
@@ -298,6 +349,14 @@ def get_agent_graph_info():
             {
                 "name": "Incident Agent",
                 "role": "Generates formal structured incident report and prioritized action items"
+            },
+            {
+                "name": "Rule Recommendation Agent",
+                "role": "Identifies novel unrepresented hazards and suggests candidate safety rules for supervisor approval"
+            },
+            {
+                "name": "Reporting & Notification Agent",
+                "role": "Dispatches asynchronous supervisor alerts via n8n automation and Render workflows"
             }
         ]
     }
