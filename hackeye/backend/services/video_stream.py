@@ -21,6 +21,8 @@ from hackeye.ai.safety_agent import ai_safety_agent
 from hackeye.swarm.coordinator import swarm_coordinator
 from hackeye.render.workflow_engine import render_workflow_orchestrator
 from hackeye.n8n.client import n8n_client
+from hackeye.edge.safety_rules import safety_constraint_engine
+from hackeye.edge.physical_nodes import physical_node_manager
 
 # 6 Pre-configured Scenarios with Dual Camera Pairs
 SCENARIO_CONFIGS = {
@@ -203,22 +205,45 @@ class CameraStreamNode:
         # Custom Scenario Overlays & Hazard Flags
         is_critical = False
         is_warning = False
+        hazard_label = self.hazard_tag or "PROXIMITY_ALERT"
+        action_command = "MAINTAIN CLEARANCE"
 
         if self.hazard_tag == "FIRE_EMERGENCY":
             self.fire_detected = True
             is_critical = True
+            hazard_label = "FIRE_EMERGENCY"
+            action_command = "EVACUATE FACILITY"
         elif self.hazard_tag == "PPE_NO_HELMET_VIOLATION":
             self.ppe_violation = True
             is_warning = True
+            hazard_label = "PPE_VIOLATION"
+            action_command = "PUT ON HARD HAT"
         elif self.hazard_tag in ["OBJECT_COLLISION", "PEDESTRIAN_CRITICAL_NEAR_MISS", "MULTI_ANGLE_COLLISION", "BLIND_CORNER_CONVERGENCE"]:
             if active_incident and active_incident.risk_level == "CRITICAL":
                 is_critical = True
-            elif proximities and any(p.estimated_distance_m < 3.5 for p in proximities):
+                action_command = "EMERGENCY BRAKE"
+            elif proximities and any(p.estimated_distance_m < safety_constraint_engine.config.min_forklift_worker_distance_m for p in proximities):
                 is_critical = True
+                action_command = "MOVE TO SAFE AREA"
             else:
                 is_warning = True
+                action_command = "SLOW VEHICLE"
 
-        # Periodic Event Persistence & Async Trigger
+        # Fast Path Physical Alert: Trigger physical hardware nodes immediately (<5ms, zero LLM delay)
+        if is_critical or is_warning:
+            physical_node_manager.dispatch_fast_alert(
+                zone_id=self.zone_label[:7],
+                hazard=hazard_label,
+                severity="CRITICAL" if is_critical else "WARNING",
+                action=action_command,
+                display_lines=[
+                    "CRITICAL HAZARD" if is_critical else "SAFETY NOTICE",
+                    f"{hazard_label.replace('_', ' ')[:18]}",
+                    action_command
+                ]
+            )
+
+        # Periodic Event Persistence & Async Trigger (Intelligence Path)
         if (is_critical or (active_incident and active_incident.risk_level == "CRITICAL")) and (time.time() - self.last_incident_time > 4.0):
             self.last_incident_time = time.time()
             target_entity = workers[0] if workers else (obstacles[0] if obstacles else None)

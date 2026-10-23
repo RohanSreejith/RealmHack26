@@ -240,3 +240,65 @@ def get_single_frame(cam: str = "cam_a"):
     if frame_bytes:
         return Response(content=frame_bytes, media_type="image/jpeg")
     return Response(status_code=204)
+
+# --- Configurable Safety Rules API ---
+from hackeye.edge.safety_rules import safety_constraint_engine, FacilitySafetyRulesConfig
+from hackeye.edge.physical_nodes import physical_node_manager
+from hackeye.ai.agent_graph import safety_agent_graph
+
+@router.get("/rules/config")
+def get_safety_rules_config():
+    """Returns active facility-specific safety constraints."""
+    return safety_constraint_engine.config.model_dump()
+
+@router.post("/rules/config")
+def update_safety_rules_config(payload: Dict[str, Any]):
+    """Live supervisor update of facility safety constraints."""
+    updated = safety_constraint_engine.update_from_dict(payload)
+    return {
+        "status": "updated",
+        "message": "Facility safety constraints dynamically applied to edge gateway.",
+        "config": updated.model_dump()
+    }
+
+# --- Physical Safety Nodes (Swarm Response Hardware Layer) ---
+@router.get("/nodes")
+def get_physical_nodes():
+    """Returns real-time status of physical response nodes (ESP32 / Raspberry Pi)."""
+    return physical_node_manager.get_all_nodes()
+
+@router.post("/nodes/{node_id}/acknowledge")
+def acknowledge_physical_node(node_id: str):
+    """Operator / Supervisor physical button press to acknowledge alert."""
+    result = physical_node_manager.acknowledge_node(node_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Physical node not found")
+    return {"status": "acknowledged", "node": result}
+
+# --- Agentic Intelligence Graph Status ---
+@router.get("/agents/graph")
+def get_agent_graph_info():
+    """Returns specification and state of the multi-agent graph architecture."""
+    return {
+        "architecture": "LangGraph-Style Structured State Multi-Agent Graph",
+        "critical_path_separation": "Fast Path (<5ms deterministic) vs Intelligence Path (async agentic reasoning)",
+        "agents": [
+            {
+                "name": "Safety Knowledge Agent",
+                "role": "Retrieves grounded OSHA & industrial safety guidelines via Firecrawl knowledge pipeline"
+            },
+            {
+                "name": "Pattern & Trend Agent",
+                "role": "Analyzes historical database records to identify recurring zone hazard patterns"
+            },
+            {
+                "name": "Safety Analysis Agent",
+                "role": "Multi-factor causal reasoning, contributing factors, and risk evaluation via Adaption AI"
+            },
+            {
+                "name": "Incident Agent",
+                "role": "Generates formal structured incident report and prioritized action items"
+            }
+        ]
+    }
+

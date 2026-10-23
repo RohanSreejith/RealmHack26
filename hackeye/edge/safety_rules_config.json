@@ -1,0 +1,32 @@
+{
+  "min_forklift_worker_distance_m": 3.5,
+  "warning_distance_m": 5.0,
+  "critical_ttc_seconds": 2.0,
+  "warning_ttc_seconds": 4.0,
+  "restricted_zone_enabled": true,
+  "restricted_zone_name": "ZONE_CRANE_BAY",
+  "restricted_zone_polygon_norm": [
+    [
+      0.0,
+      0.45
+    ],
+    [
+      0.35,
+      0.45
+    ],
+    [
+      0.35,
+      1.0
+    ],
+    [
+      0.0,
+      1.0
+    ]
+  ],
+  "max_stack_height_m": 2.2,
+  "min_aisle_clearance_m": 1.5,
+  "aisle_zone_name": "MAIN_TRANSIT_AISLE",
+  "ppe_helmet_required": true,
+  "ppe_vest_required": false,
+  "max_zone_occupancy": 6
+}

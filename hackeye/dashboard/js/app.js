@@ -259,6 +259,182 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // --- 8. Safety Rules Modal & Dynamic Configuration ---
+  const rulesModal = document.getElementById("rulesModal");
+  const openRulesBtn = document.getElementById("openRulesBtn");
+  const rulesModalCloseBtn = document.getElementById("rulesModalCloseBtn");
+  const rulesModalDismissBtn = document.getElementById("rulesModalDismissBtn");
+  const saveRulesBtn = document.getElementById("saveRulesBtn");
+
+  const sliderForkliftDist = document.getElementById("sliderForkliftDist");
+  const valForkliftDist = document.getElementById("valForkliftDist");
+  const sliderStackHeight = document.getElementById("sliderStackHeight");
+  const valStackHeight = document.getElementById("valStackHeight");
+  const sliderAisleClear = document.getElementById("sliderAisleClear");
+  const valAisleClear = document.getElementById("valAisleClear");
+  const sliderOccupancy = document.getElementById("sliderOccupancy");
+  const valOccupancy = document.getElementById("valOccupancy");
+  const toggleRestrictedZone = document.getElementById("toggleRestrictedZone");
+  const togglePPE = document.getElementById("togglePPE");
+
+  const openRulesModal = () => { if (rulesModal) rulesModal.classList.add("active"); };
+  const closeRulesModal = () => { if (rulesModal) rulesModal.classList.remove("active"); };
+
+  if (openRulesBtn) openRulesBtn.addEventListener("click", openRulesModal);
+  if (rulesModalCloseBtn) rulesModalCloseBtn.addEventListener("click", closeRulesModal);
+  if (rulesModalDismissBtn) rulesModalDismissBtn.addEventListener("click", closeRulesModal);
+
+  // Sync sliders text
+  if (sliderForkliftDist) {
+    sliderForkliftDist.addEventListener("input", (e) => {
+      if (valForkliftDist) valForkliftDist.textContent = `${parseFloat(e.target.value).toFixed(1)}m`;
+    });
+  }
+  if (sliderStackHeight) {
+    sliderStackHeight.addEventListener("input", (e) => {
+      if (valStackHeight) valStackHeight.textContent = `${parseFloat(e.target.value).toFixed(1)}m`;
+    });
+  }
+  if (sliderAisleClear) {
+    sliderAisleClear.addEventListener("input", (e) => {
+      if (valAisleClear) valAisleClear.textContent = `${parseFloat(e.target.value).toFixed(1)}m`;
+    });
+  }
+  if (sliderOccupancy) {
+    sliderOccupancy.addEventListener("input", (e) => {
+      if (valOccupancy) valOccupancy.textContent = `${e.target.value} Workers`;
+    });
+  }
+
+  // Fetch initial rules config from API
+  fetch("/api/rules/config")
+    .then(res => res.json())
+    .then(cfg => {
+      if (sliderForkliftDist) sliderForkliftDist.value = cfg.min_forklift_worker_distance_m || 3.0;
+      if (valForkliftDist) valForkliftDist.textContent = `${(cfg.min_forklift_worker_distance_m || 3.0).toFixed(1)}m`;
+      if (sliderStackHeight) sliderStackHeight.value = cfg.max_stack_height_m || 2.2;
+      if (valStackHeight) valStackHeight.textContent = `${(cfg.max_stack_height_m || 2.2).toFixed(1)}m`;
+      if (sliderAisleClear) sliderAisleClear.value = cfg.min_aisle_clearance_m || 1.5;
+      if (valAisleClear) valAisleClear.textContent = `${(cfg.min_aisle_clearance_m || 1.5).toFixed(1)}m`;
+      if (sliderOccupancy) sliderOccupancy.value = cfg.max_zone_occupancy || 6;
+      if (valOccupancy) valOccupancy.textContent = `${cfg.max_zone_occupancy || 6} Workers`;
+      if (toggleRestrictedZone) toggleRestrictedZone.checked = cfg.restricted_zone_enabled !== false;
+      if (togglePPE) togglePPE.checked = cfg.ppe_helmet_required !== false;
+    })
+    .catch(() => {});
+
+  // Save rules config to Edge Gateway
+  if (saveRulesBtn) {
+    saveRulesBtn.addEventListener("click", async () => {
+      const payload = {
+        min_forklift_worker_distance_m: parseFloat(sliderForkliftDist.value),
+        max_stack_height_m: parseFloat(sliderStackHeight.value),
+        min_aisle_clearance_m: parseFloat(sliderAisleClear.value),
+        max_zone_occupancy: parseInt(sliderOccupancy.value),
+        restricted_zone_enabled: toggleRestrictedZone.checked,
+        ppe_helmet_required: togglePPE.checked
+      };
+
+      try {
+        const res = await fetch("/api/rules/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        saveRulesBtn.textContent = "✓ Applied to Edge!";
+        setTimeout(() => {
+          saveRulesBtn.textContent = "Apply to Edge Gateway";
+          closeRulesModal();
+        }, 1200);
+      } catch (err) {
+        console.error("Rules save error:", err);
+      }
+    });
+  }
+
+  // --- 9. Multi-Agent Intelligence Graph Modal ---
+  const agentGraphModal = document.getElementById("agentGraphModal");
+  const openAgentGraphBtn = document.getElementById("openAgentGraphBtn");
+  const agentModalCloseBtn = document.getElementById("agentModalCloseBtn");
+  const agentModalDismissBtn = document.getElementById("agentModalDismissBtn");
+
+  const openAgentModal = () => { if (agentGraphModal) agentGraphModal.classList.add("active"); };
+  const closeAgentModal = () => { if (agentGraphModal) agentGraphModal.classList.remove("active"); };
+
+  if (openAgentGraphBtn) openAgentGraphBtn.addEventListener("click", openAgentModal);
+  if (agentModalCloseBtn) agentModalCloseBtn.addEventListener("click", closeAgentModal);
+  if (agentModalDismissBtn) agentModalDismissBtn.addEventListener("click", closeAgentModal);
+
+  // --- 10. Physical Safety Nodes Hardware Polling ---
+  window.acknowledgeNode = async (nodeId) => {
+    try {
+      await fetch(`/api/nodes/${nodeId}/acknowledge`, { method: "POST" });
+      pollPhysicalNodes();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  async function pollPhysicalNodes() {
+    try {
+      const res = await fetch("/api/nodes");
+      if (!res.ok) return;
+      const nodes = await res.json();
+
+      nodes.forEach(node => {
+        if (node.node_id === "NODE_ZONE_01") {
+          updateNodeCard("node01Led", "node01Speaker", "node01Oled", node);
+        } else if (node.node_id === "NODE_ZONE_02") {
+          updateNodeCard("node02Led", "node02Speaker", "node02Oled", node);
+        }
+      });
+    } catch (e) {
+      // Offline fallback
+    }
+  }
+
+  function updateNodeCard(ledId, speakerId, oledId, node) {
+    const ledEl = document.getElementById(ledId);
+    const spkEl = document.getElementById(speakerId);
+    const oledEl = document.getElementById(oledId);
+
+    if (ledEl) {
+      ledEl.className = "actuator-badge";
+      if (node.led_state === "RED_STROBE") {
+        ledEl.classList.add("badge-red-strobe");
+        ledEl.textContent = "RED STROBE";
+      } else if (node.led_state === "YELLOW_PULSE") {
+        ledEl.classList.add("badge-yellow-pulse");
+        ledEl.textContent = "YELLOW PULSE";
+      } else {
+        ledEl.classList.add("badge-green");
+        ledEl.textContent = "GREEN NORMAL";
+      }
+    }
+
+    if (spkEl) {
+      spkEl.className = "actuator-badge";
+      if (node.speaker_state === "CRITICAL_SIREN") {
+        spkEl.classList.add("badge-red-strobe");
+        spkEl.textContent = "SIREN CRITICAL";
+      } else if (node.speaker_state === "WARN_CHIME") {
+        spkEl.classList.add("badge-yellow-pulse");
+        spkEl.textContent = "AUDIBLE CHIME";
+      } else {
+        spkEl.classList.add("badge-gray");
+        spkEl.textContent = "SILENT";
+      }
+    }
+
+    if (oledEl && node.oled_display_lines) {
+      oledEl.innerHTML = node.oled_display_lines.map(line => `<div>${line}</div>`).join("");
+    }
+  }
+
+  setInterval(pollPhysicalNodes, 2000);
+  pollPhysicalNodes();
+
   // Load initial scenario 1 on startup
   fetch("/api/demo/scenario/scenario_1_entrance", { method: "POST" })
     .then(res => res.json())
@@ -268,3 +444,4 @@ document.addEventListener("DOMContentLoaded", () => {
     })
     .catch(() => {});
 });
+

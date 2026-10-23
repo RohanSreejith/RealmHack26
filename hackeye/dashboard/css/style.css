@@ -1270,3 +1270,330 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   Physical Safety Nodes & Rule Configuration Additions
+   ========================================================================== */
+.physical-nodes-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.node-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.swarm-hw-badge {
+  background: #EFF6FF;
+  color: #1E40AF;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid #BFDBFE;
+}
+
+.node-live-status {
+  font-size: 12px;
+  font-weight: 700;
+  color: #10B981;
+}
+
+.node-subtext {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: -6px;
+}
+
+.nodes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.physical-node-item {
+  background: #F8FAFC;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.node-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.node-meta-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.node-id-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  color: #1E3A8A;
+  background: #DBEAFE;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.node-hw-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.node-ack-btn {
+  background: #FFFFFF;
+  border: 1px solid var(--border-color);
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.node-ack-btn:hover {
+  background: #F1F5F9;
+  color: #0F172A;
+}
+
+.node-actuators-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.actuator-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.actuator-lbl {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+.actuator-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 6px;
+  display: inline-block;
+  text-align: center;
+}
+
+.badge-green {
+  background: #DCFCE7;
+  color: #15803D;
+  border: 1px solid #BBF7D0;
+}
+
+.badge-red-strobe {
+  background: #FEE2E2;
+  color: #DC2626;
+  border: 1px solid #FECACA;
+  animation: pulse-red 0.8s infinite;
+}
+
+.badge-yellow-pulse {
+  background: #FEF3C7;
+  color: #D97706;
+  border: 1px solid #FDE68A;
+}
+
+.badge-gray {
+  background: #F1F5F9;
+  color: #64748B;
+  border: 1px solid #E2E8F0;
+}
+
+@keyframes pulse-red {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(0.98); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.oled-emulator {
+  background: #0B0F19;
+  border: 2px solid #1E293B;
+  border-radius: 6px;
+  padding: 8px 10px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+}
+
+.oled-screen {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #38BDF8;
+  line-height: 15px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* Rule Sliders & Toggles */
+.rule-config-group {
+  margin-bottom: 16px;
+}
+
+.rule-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.rule-label-row label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.rule-val-badge {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  color: #1E40AF;
+  background: #EFF6FF;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.rule-slider {
+  width: 100%;
+  accent-color: #2563EB;
+  cursor: pointer;
+}
+
+.rule-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--border-color);
+}
+
+.rule-toggle-sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* Modern Switch */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: #CBD5E1;
+  transition: .3s;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s;
+}
+
+input:checked + .slider {
+  background-color: #2563EB;
+}
+
+input:checked + .slider:before {
+  transform: translateX(20px);
+}
+
+.slider.round {
+  border-radius: 34px;
+}
+
+.slider.round:before {
+  border-radius: 50%;
+}
+
+/* Multi-Agent Architecture Pipeline Flow */
+.agent-pipeline-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.agent-card-item {
+  display: flex;
+  gap: 12px;
+  background: #F8FAFC;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px;
+  align-items: flex-start;
+}
+
+.agent-num {
+  background: #1E3A8A;
+  color: #FFFFFF;
+  font-weight: 800;
+  font-size: 13px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.agent-card-content h4 {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.agent-card-content p {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 15px;
+  margin-bottom: 6px;
+}
+
+.agent-tag {
+  font-size: 9px;
+  font-weight: 800;
+  color: #7C3AED;
+  background: #F5F3FF;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #DDD6FE;
+}
+

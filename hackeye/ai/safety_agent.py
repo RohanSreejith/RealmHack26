@@ -10,71 +10,33 @@ from hackeye.backend.database.models import Incident, SafetyInsight
 from hackeye.firecrawl.knowledge_service import safety_knowledge_service
 from hackeye.ai.adaption_client import adaption_client
 
+from hackeye.ai.agent_graph import safety_agent_graph, IncidentSharedState
+
 class AISafetyAgent:
     def __init__(self):
         pass
 
     def process_incident(self, incident_dict: Dict[str, Any]) -> Dict[str, Any]:
-        """Runs deep AI reasoning without delaying the local edge alert."""
-        zone = incident_dict.get("zone", "ZONE_01")
-        machine_type = incident_dict.get("machine_type", "forklift")
-
-        # 1. Fetch relevant OSHA & Industrial safety guidelines via Firecrawl service
-        knowledge_matches = safety_knowledge_service.retrieve_guidance(
-            machine_type=machine_type,
-            context_keywords=["blind", "entrance", "proximity", "pedestrian"]
+        """Runs multi-agent reasoning graph asynchronously without delaying edge physical alerts."""
+        shared_state = IncidentSharedState(
+            incident_id=incident_dict.get("incident_id", f"INC-{int(datetime.now(timezone.utc).timestamp())}"),
+            timestamp=incident_dict.get("timestamp", datetime.now(timezone.utc).isoformat()),
+            zone=incident_dict.get("zone", "ZONE_01"),
+            camera_id=incident_dict.get("camera_id", "CAM_01"),
+            detected_objects=[incident_dict.get("worker_id", "W-017"), incident_dict.get("machine_id", "F-004")],
+            track_ids=[incident_dict.get("worker_id", "W-017"), incident_dict.get("machine_id", "F-004")],
+            machine_type=incident_dict.get("machine_type", "forklift"),
+            distance_m=incident_dict.get("distance_m", 2.4),
+            ttc_seconds=incident_dict.get("ttc_seconds", 1.7),
+            severity=incident_dict.get("risk_level", "CRITICAL"),
+            rule_violations=incident_dict.get("rule_violations", ["RULE_1_PROXIMITY_BREACH"])
         )
-        context_str = "\n".join([f"- {k['title']}: {k['summary']}" for k in knowledge_matches])
 
-        # 2. Check for historical near-miss count in this zone
-        db: Session = SessionLocal()
-        near_misses_count = 0
-        try:
-            near_misses_count = db.query(Incident).filter(
-                Incident.zone == zone,
-                Incident.risk_level.in_(["WARNING", "HIGH", "CRITICAL"])
-            ).count()
-        finally:
-            db.close()
-
-        # Augment payload for the AI agent
-        enriched_payload = dict(incident_dict)
-        enriched_payload["previous_near_misses_in_zone"] = near_misses_count
-        enriched_payload["active_hazards_nearby"] = 1 if near_misses_count > 2 else 0
-
-        # 3. Call Adaption AI Reasoning
-        ai_result = adaption_client.analyze_incident(enriched_payload, context_str)
-        
-        # 4. Attach knowledge citations
-        ai_result["knowledge_used"] = [
-            {"id": k["id"], "title": k["title"], "source": k["source"]}
-            for k in knowledge_matches
-        ]
-
-        # 5. Persist AI analysis and create Safety Insight if pattern repeats
-        db = SessionLocal()
-        try:
-            inc = db.query(Incident).filter(Incident.incident_id == incident_dict["incident_id"]).first()
-            if inc:
-                inc.ai_analysis = ai_result
-                inc.knowledge_cited = ai_result["knowledge_used"]
-                inc.status = "AI_ANALYZED"
-                db.commit()
-
-            # Record zone pattern insight if repeated occurrences
-            if near_misses_count >= 2:
-                insight = SafetyInsight(
-                    insight_id=f"INS-{zone}-{int(datetime.now(timezone.utc).timestamp())}",
-                    zone=zone,
-                    pattern=f"High frequency of {machine_type} blind-corner interactions in {zone} ({near_misses_count}+ recorded)",
-                    recommendation=ai_result.get("recommended_actions", ["Enforce physical pedestrian barrier"])[0],
-                    incident_count=near_misses_count + 1
-                )
-                db.merge(insight)
-                db.commit()
-        finally:
-            db.close()
-
-        return ai_result
+        final_state = safety_agent_graph.execute_graph(shared_state)
+        result = dict(final_state.agent_analysis)
+        result["knowledge_used"] = final_state.retrieved_safety_guidance
+        result["pattern_insight"] = final_state.recurring_pattern_summary
+        result["report"] = final_state.final_incident_report
+        return result
 
 ai_safety_agent = AISafetyAgent()

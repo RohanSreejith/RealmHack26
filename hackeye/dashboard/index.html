@@ -109,6 +109,12 @@
       <button class="scenario-pill" data-scenario="scenario_6_multiangle">
         6. Multi-Angle Collision
       </button>
+      <button class="scenario-pill config-btn" id="openRulesBtn" title="Configure Facility Safety Rules">
+        ⚙️ Safety Rules
+      </button>
+      <button class="scenario-pill agent-btn" id="openAgentGraphBtn" title="View AI Multi-Agent Intelligence Graph">
+        🧠 Agent Graph
+      </button>
       <button class="scenario-pill cloud-btn" id="cloudToggleBtn">
         Disconnect Cloud
       </button>
@@ -470,6 +476,79 @@
           </div>
         </div>
       </div>
+
+      <!-- CARD 4: PHYSICAL SAFETY NODES (SWARM HARDWARE RESPONSE LAYER) -->
+      <div class="hawk-card physical-nodes-card">
+        <div class="alerts-header">
+          <div class="node-title-group">
+            <h2 class="card-title">Physical Safety Nodes</h2>
+            <span class="swarm-hw-badge">ESP32 / Pi Swarm</span>
+          </div>
+          <span class="node-live-status">● 3 Online</span>
+        </div>
+        <p class="node-subtext">Immediate physical response hardware layer (Fast-Path &lt;5ms)</p>
+
+        <div class="nodes-list" id="physicalNodesList">
+          <!-- Node 1: Loading Bay -->
+          <div class="physical-node-item" id="nodeCardZone01">
+            <div class="node-header-row">
+              <div class="node-meta-left">
+                <span class="node-id-tag">NODE_ZONE_01</span>
+                <span class="node-hw-name">ESP32-S3 Beacon (Outside Bay)</span>
+              </div>
+              <button class="node-ack-btn" onclick="acknowledgeNode('NODE_ZONE_01')">Acknowledge</button>
+            </div>
+            <div class="node-actuators-grid">
+              <div class="actuator-item">
+                <span class="actuator-lbl">LED STROBE</span>
+                <span class="actuator-badge badge-green" id="node01Led">GREEN NORMAL</span>
+              </div>
+              <div class="actuator-item">
+                <span class="actuator-lbl">SPEAKER / SIREN</span>
+                <span class="actuator-badge badge-gray" id="node01Speaker">SILENT</span>
+              </div>
+            </div>
+            <!-- OLED Screen Emulator -->
+            <div class="oled-emulator">
+              <div class="oled-screen" id="node01Oled">
+                <div>ZONE 01 ACTIVE</div>
+                <div>ALL LANES CLEAR</div>
+                <div>SYSTEM READY</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Node 2: Interior Door -->
+          <div class="physical-node-item" id="nodeCardZone02">
+            <div class="node-header-row">
+              <div class="node-meta-left">
+                <span class="node-id-tag">NODE_ZONE_02</span>
+                <span class="node-hw-name">Pi Zero Buzzer (Aisle 04 Door)</span>
+              </div>
+              <button class="node-ack-btn" onclick="acknowledgeNode('NODE_ZONE_02')">Acknowledge</button>
+            </div>
+            <div class="node-actuators-grid">
+              <div class="actuator-item">
+                <span class="actuator-lbl">LED STROBE</span>
+                <span class="actuator-badge badge-green" id="node02Led">GREEN NORMAL</span>
+              </div>
+              <div class="actuator-item">
+                <span class="actuator-lbl">SPEAKER / SIREN</span>
+                <span class="actuator-badge badge-gray" id="node02Speaker">SILENT</span>
+              </div>
+            </div>
+            <!-- OLED Screen Emulator -->
+            <div class="oled-emulator">
+              <div class="oled-screen" id="node02Oled">
+                <div>ZONE 02 ACTIVE</div>
+                <div>THRESHOLD CLEAR</div>
+                <div>SYSTEM READY</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </section>
 
   </main>
@@ -555,6 +634,155 @@
       <div class="modal-footer">
         <button class="modal-dismiss-btn" id="modalDismissBtn">Close Analysis</button>
         <button class="modal-action-btn" id="modalDispatchN8nBtn">Dispatch n8n Escalation</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Safety Rules Configuration Modal -->
+  <div class="modal-overlay" id="rulesModal">
+    <div class="modal-box" style="max-width: 600px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="modal-badge-red" style="background:#2563EB;">SAFETY CONSTRAINT ENGINE</span>
+          <h2 class="modal-headline">Facility Safety Rules Configuration</h2>
+        </div>
+        <button class="modal-close-btn" id="rulesModalCloseBtn">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <p class="modal-escalation-text" style="margin-bottom: 20px;">
+          Define facility-specific safety thresholds evaluated deterministically by the edge gateway in real-time.
+        </p>
+
+        <!-- Rule 1: Machine Proximity -->
+        <div class="rule-config-group">
+          <div class="rule-label-row">
+            <label>Rule 1: Forklift-Worker Min Distance</label>
+            <span class="rule-val-badge" id="valForkliftDist">3.0m</span>
+          </div>
+          <input type="range" min="1.0" max="8.0" step="0.5" value="3.0" class="rule-slider" id="sliderForkliftDist">
+        </div>
+
+        <!-- Rule 2: Stack Height -->
+        <div class="rule-config-group">
+          <div class="rule-label-row">
+            <label>Rule 2: Max Storage Stack Height</label>
+            <span class="rule-val-badge" id="valStackHeight">2.2m</span>
+          </div>
+          <input type="range" min="1.0" max="4.5" step="0.2" value="2.2" class="rule-slider" id="sliderStackHeight">
+        </div>
+
+        <!-- Rule 3: Aisle Clearance -->
+        <div class="rule-config-group">
+          <div class="rule-label-row">
+            <label>Rule 3: Emergency Aisle Clearance</label>
+            <span class="rule-val-badge" id="valAisleClear">1.5m</span>
+          </div>
+          <input type="range" min="0.8" max="3.0" step="0.1" value="1.5" class="rule-slider" id="sliderAisleClear">
+        </div>
+
+        <!-- Rule 4: Restricted Zone -->
+        <div class="rule-toggle-row">
+          <div>
+            <strong>Rule 4: Restricted Zone Enforcement</strong>
+            <p class="rule-toggle-sub">Trigger immediate violation when worker enters Crane Bay footprint</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleRestrictedZone" checked>
+            <span class="slider round"></span>
+          </label>
+        </div>
+
+        <!-- Rule 5: PPE Compliance -->
+        <div class="rule-toggle-row">
+          <div>
+            <strong>Rule 5: OSHA 1926.100 PPE Hard Hat Enforcement</strong>
+            <p class="rule-toggle-sub">Flag workers handling materials without certified head protection</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="togglePPE" checked>
+            <span class="slider round"></span>
+          </label>
+        </div>
+
+        <!-- Rule 6: Max Zone Occupancy -->
+        <div class="rule-config-group" style="margin-top: 14px;">
+          <div class="rule-label-row">
+            <label>Rule 6: Maximum Zone Worker Occupancy</label>
+            <span class="rule-val-badge" id="valOccupancy">6 Workers</span>
+          </div>
+          <input type="range" min="2" max="15" step="1" value="6" class="rule-slider" id="sliderOccupancy">
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="modal-dismiss-btn" id="rulesModalDismissBtn">Cancel</button>
+        <button class="modal-action-btn" id="saveRulesBtn" style="background:#2563EB;">Apply to Edge Gateway</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multi-Agent Intelligence Graph Modal -->
+  <div class="modal-overlay" id="agentGraphModal">
+    <div class="modal-box" style="max-width: 650px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="modal-badge-red" style="background:#7C3AED;">LANGGRAPH ARCHITECTURE</span>
+          <h2 class="modal-headline">Multi-Agent Safety Intelligence Graph</h2>
+        </div>
+        <button class="modal-close-btn" id="agentModalCloseBtn">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <p class="modal-escalation-text" style="margin-bottom: 16px;">
+          Asynchronous reasoning pipeline executing across 4 specialized AI agents operating on unified <strong style="color:#1E3A8A;">IncidentSharedState</strong> without blocking local physical alerts.
+        </p>
+
+        <div class="agent-pipeline-flow">
+          <!-- Agent 1 -->
+          <div class="agent-card-item">
+            <div class="agent-num">1</div>
+            <div class="agent-card-content">
+              <h4>Safety Knowledge Agent</h4>
+              <p>Retrieves grounded OSHA regulations &amp; facility safety manuals via Firecrawl web ingestion.</p>
+              <span class="agent-tag">FIRECRAWL RAG</span>
+            </div>
+          </div>
+
+          <!-- Agent 2 -->
+          <div class="agent-card-item">
+            <div class="agent-num">2</div>
+            <div class="agent-card-content">
+              <h4>Pattern &amp; Trend Agent</h4>
+              <p>Cross-references historical edge incident database to detect repeated zone safety hotspots.</p>
+              <span class="agent-tag">HISTORICAL CORRELATION</span>
+            </div>
+          </div>
+
+          <!-- Agent 3 -->
+          <div class="agent-card-item">
+            <div class="agent-num">3</div>
+            <div class="agent-card-content">
+              <h4>Safety Analysis Agent</h4>
+              <p>Executes multi-factor causal reasoning, trajectory risk projection, and contributing factors via Adaption AI.</p>
+              <span class="agent-tag">ADAPTION AI REASONING</span>
+            </div>
+          </div>
+
+          <!-- Agent 4 -->
+          <div class="agent-card-item">
+            <div class="agent-num">4</div>
+            <div class="agent-card-content">
+              <h4>Incident Report Agent</h4>
+              <p>Synthesizes formal structured compliance incident reports and orchestrates supervisor actions via n8n.</p>
+              <span class="agent-tag">N8N / RENDER WORKFLOW</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="modal-dismiss-btn" id="agentModalDismissBtn">Close Architecture</button>
       </div>
     </div>
   </div>
