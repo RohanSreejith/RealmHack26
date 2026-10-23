@@ -3,339 +3,585 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hack-Eye — Distributed AI for Predictive Industrial Safety</title>
+  <title>HAWK — AI for a Safer Tomorrow | Industrial Safety Intelligence</title>
   <link rel="stylesheet" href="/static/css/style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ff1744'><path d='M12 2L1 21h22L12 2zm0 3.5L20.5 19H3.5L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z'/></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%231e40af'><path d='M21 3l-6 6 2 2 4-4v6h2V3h-8v2h6zM3 13v8h8v-2H5v-6H3z'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-  <!-- Top Navigation / Mission-Control Header -->
-  <header class="top-nav">
-    <div class="brand-section">
-      <div class="logo-badge">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 2L1 21h22L12 2zm0 3.5L20.5 19H3.5L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/>
+  <!-- Top Navigation Bar -->
+  <header class="hawk-navbar">
+    <!-- Brand / Logo -->
+    <div class="nav-brand">
+      <div class="brand-logo">
+        <svg viewBox="0 0 40 40" fill="none" class="hawk-svg-icon">
+          <path d="M6 26C12 24 16 19 21 13C25 8 30 5 35 4C33 10 30 16 26 21C22 26 16 29 9 31L6 26Z" fill="#1E3A8A"/>
+          <path d="M11 28C17 26 22 23 26 17C29 13 32 8 35 4C30 9 24 14 19 20C15 24 12 26 11 28Z" fill="#2563EB"/>
+          <path d="M8 29C13 31 18 33 24 33C19 31 14 29 8 29Z" fill="#3B82F6"/>
         </svg>
-        HACK-EYE
       </div>
-      <div class="facility-tag">
-        FACILITY: <strong>LOGISTICS HUB ALPHA (BAY 2)</strong>
+      <div class="brand-text">
+        <span class="brand-title">HAWK</span>
+        <span class="brand-tagline">AI for a Safer Tomorrow</span>
       </div>
     </div>
 
-    <div class="status-badges">
-      <div class="badge badge-green" id="edgeStatusBadge">
-        <span class="badge-dot"></span> EDGE NODES: 3/3 ONLINE
+    <!-- Facility Location Pill Dropdown -->
+    <div class="nav-facility-pill">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+        <circle cx="12" cy="10" r="3"></circle>
+      </svg>
+      <div class="facility-info">
+        <span class="facility-name">Riverside Construction Site</span>
+        <span class="facility-sub">Sector B • Main Facility</span>
       </div>
-      <div class="badge badge-green" id="cloudStatusBadge">
-        <span class="badge-dot"></span> CLOUD: ONLINE
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+    </div>
+
+    <!-- Right Controls: Weather, Clock, Notifications, Profile -->
+    <div class="nav-actions">
+      <!-- Weather Pill -->
+      <div class="weather-pill">
+        <span class="weather-icon">☀️</span>
+        <div class="weather-details">
+          <span class="temp">28°C</span>
+          <span class="condition">Clear</span>
+        </div>
       </div>
-      <div class="badge badge-cyan">
-        <span class="badge-dot"></span> AI: READY (ADAPTION)
+
+      <!-- Live Digital Clock -->
+      <div class="clock-pill">
+        <span class="clock-date" id="liveDate">Tue, 5 Sep 2026</span>
+        <span class="clock-time" id="liveClock">09:36:21</span>
       </div>
-      <div class="badge badge-score" id="facilityScoreBadge">
-        RISK INDEX: 88/100
-      </div>
-      <button class="audio-toggle-btn" id="audioToggleBtn" title="Toggle Local Acoustic Siren">
-        🔊 ALARM ACTIVE
+
+      <!-- Notification Bell -->
+      <button class="notif-bell-btn" id="notifBellBtn" title="3 Active Alerts">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+        <span class="notif-badge-count">3</span>
       </button>
+
+      <!-- User Profile Pill -->
+      <div class="user-profile-pill">
+        <div class="avatar-circle">K</div>
+        <div class="user-meta">
+          <span class="user-name">Karthik</span>
+          <span class="user-role">Supervisor</span>
+        </div>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </div>
     </div>
   </header>
 
-  <!-- Demo Control Bar (Judge Presentation Panel) -->
-  <div class="demo-control-bar">
-    <div class="demo-title">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
-      </svg>
-      DEMO CONTROLS:
+  <!-- Scenario Selector & Demo Controller Bar -->
+  <section class="scenario-bar">
+    <div class="scenario-label">
+      <span class="scenario-dot"></span>
+      <span>SCENARIOS:</span>
     </div>
-    <div class="demo-buttons">
-      <button class="demo-btn active" data-scenario="scenario_1_entrance">1. FORKLIFT ENTRANCE EVASION</button>
-      <button class="demo-btn" data-scenario="scenario_2_box_no_helmet">2. BOX PICKUP (NO HELMET)</button>
-      <button class="demo-btn" data-scenario="scenario_3_fire">3. FIRE HAZARD EMERGENCY</button>
-      <button class="demo-btn" data-scenario="scenario_4_item_collision">4. ITEM/RACK COLLISION</button>
-      <button class="demo-btn" data-scenario="scenario_5_person_nearmiss">5. PEDESTRIAN NEAR-MISS</button>
-      <button class="demo-btn" data-scenario="scenario_6_multiangle">6. MULTI-ANGLE COLLISION</button>
-      <button class="demo-btn cloud-toggle" id="cloudToggleBtn">DISCONNECT CLOUD</button>
+    <div class="scenario-pills">
+      <button class="scenario-pill active" data-scenario="scenario_1_entrance">
+        1. Forklift Entrance Evasion
+      </button>
+      <button class="scenario-pill" data-scenario="scenario_2_box_no_helmet">
+        2. Box Pickup (No Helmet)
+      </button>
+      <button class="scenario-pill" data-scenario="scenario_3_fire">
+        3. Fire Hazard Emergency
+      </button>
+      <button class="scenario-pill" data-scenario="scenario_4_item_collision">
+        4. Item/Rack Collision
+      </button>
+      <button class="scenario-pill" data-scenario="scenario_5_person_nearmiss">
+        5. Pedestrian Near-Miss
+      </button>
+      <button class="scenario-pill" data-scenario="scenario_6_multiangle">
+        6. Multi-Angle Collision
+      </button>
+      <button class="scenario-pill cloud-btn" id="cloudToggleBtn">
+        Disconnect Cloud
+      </button>
     </div>
-  </div>
+  </section>
 
-  <!-- Main Dashboard Grid -->
-  <main class="dashboard-grid">
+  <!-- Main Dashboard Workspace -->
+  <main class="dashboard-container">
+    
+    <!-- LEFT COLUMN: Live Monitoring Feeds (Stacked Dual Cameras) -->
+    <section class="live-monitoring-col">
+      <div class="section-title-row">
+        <h1 class="main-heading">Live Monitoring</h1>
+        <div class="system-status-pill">
+          <span class="pulse-green-dot"></span>
+          <span>All Systems Online</span>
+        </div>
+      </div>
+      <p class="section-subtext">Real-time monitoring across key zones</p>
 
-    <!-- Column 1: Live Video Feed & Edge Telemetry -->
-    <div class="dash-panel">
-      <div class="panel-header">
-        <h3>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+      <!-- Video Feed Card 1: Cam 1 Entrance (Outside) -->
+      <div class="camera-card" id="camCardA">
+        <!-- Live Video Element -->
+        <div class="camera-media-wrap">
+          <img src="/api/stream/video/cam_a" alt="Cam 1 Entrance Stream" class="live-video-element" id="videoStreamA">
+          
+          <!-- Bounding Boxes Overlay (YOLO Detections) -->
+          <div class="bounding-boxes-layer" id="bboxLayerA">
+            <!-- Box 1: Forklift -->
+            <div class="bbox-item bbox-danger" id="bboxForkliftA">
+              <span class="bbox-tag" id="bboxForkliftTagA">Forklift 0.91</span>
+            </div>
+            <!-- Box 2: Worker -->
+            <div class="bbox-item bbox-safe" id="bboxWorkerA">
+              <span class="bbox-tag" id="bboxWorkerTagA">Worker 0.87</span>
+            </div>
+          </div>
+
+          <!-- Top-Left Camera Name Pill -->
+          <div class="cam-badge-top-left">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 7l-7 5 7 5V7z"></path>
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+            </svg>
+            <span id="camNameA">Cam 1</span>
+            <span class="cam-sublocation" id="camLocationA">Entrance (Outside)</span>
+          </div>
+
+          <!-- Top-Right Live Badge -->
+          <div class="cam-badge-top-right">
+            <span class="live-red-dot"></span>
+            <span>LIVE</span>
+          </div>
+
+          <!-- Bottom-Left Timestamp Pill -->
+          <div class="cam-timestamp-pill" id="camTimeA">
+            09:36:18
+          </div>
+
+          <!-- Bottom-Right Controls -->
+          <div class="cam-controls-bottom-right">
+            <button class="cam-icon-btn" title="Expand Fullscreen" id="fullscreenBtnA">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <polyline points="9 21 3 21 3 15"></polyline>
+                <line x1="21" y1="3" x2="14" y2="10"></line>
+                <line x1="3" y1="21" x2="10" y2="14"></line>
+              </svg>
+            </button>
+            <button class="cam-icon-btn" title="Capture Snapshot" id="snapshotBtnA">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                <circle cx="12" cy="13" r="4"></circle>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Video Feed Card 2: Cam 2 Aisle 4 (Inside) -->
+      <div class="camera-card" id="camCardB">
+        <div class="camera-media-wrap">
+          <img src="/api/stream/video/cam_b" alt="Cam 2 Aisle 4 Stream" class="live-video-element" id="videoStreamB">
+
+          <!-- Bounding Boxes Overlay (YOLO Detections) -->
+          <div class="bounding-boxes-layer" id="bboxLayerB">
+            <!-- Box 1: Forklift -->
+            <div class="bbox-item bbox-danger" id="bboxForkliftB">
+              <span class="bbox-tag" id="bboxForkliftTagB">Forklift 0.89</span>
+            </div>
+            <!-- Box 2: Worker -->
+            <div class="bbox-item bbox-safe" id="bboxWorkerB">
+              <span class="bbox-tag" id="bboxWorkerTagB">Worker 0.93</span>
+            </div>
+          </div>
+
+          <!-- Top-Left Camera Name Pill -->
+          <div class="cam-badge-top-left">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 7l-7 5 7 5V7z"></path>
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+            </svg>
+            <span id="camNameB">Cam 2</span>
+            <span class="cam-sublocation" id="camLocationB">Aisle 4 (Inside)</span>
+          </div>
+
+          <!-- Top-Right Live Badge -->
+          <div class="cam-badge-top-right">
+            <span class="live-red-dot"></span>
+            <span>LIVE</span>
+          </div>
+
+          <!-- Bottom-Left Timestamp Pill -->
+          <div class="cam-timestamp-pill" id="camTimeB">
+            09:36:21
+          </div>
+
+          <!-- Bottom-Right Controls -->
+          <div class="cam-controls-bottom-right">
+            <button class="cam-icon-btn" title="Expand Fullscreen" id="fullscreenBtnB">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <polyline points="9 21 3 21 3 15"></polyline>
+                <line x1="21" y1="3" x2="14" y2="10"></line>
+                <line x1="3" y1="21" x2="10" y2="14"></line>
+              </svg>
+            </button>
+            <button class="cam-icon-btn" title="Capture Snapshot" id="snapshotBtnB">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                <circle cx="12" cy="13" r="4"></circle>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT COLUMN: Active Incident, 3D Site Map, Recent Alerts -->
+    <section class="side-panel-col">
+
+      <!-- CARD 1: ACTIVE INCIDENT CARD -->
+      <div class="hawk-card incident-card" id="incidentCard">
+        <div class="incident-card-header">
+          <div class="incident-badge-red">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2L1 21h22L12 2zm0 3.5L20.5 19H3.5L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/>
+            </svg>
+            <span>ACTIVE INCIDENT</span>
+          </div>
+          <div class="countdown-badge" id="incidentCountdown">
+            In ~ 4.2 seconds
+          </div>
+        </div>
+
+        <div class="incident-body-row">
+          <div class="incident-text-content">
+            <h2 class="incident-title" id="incidentTitle">Vehicle Approaching Zone B</h2>
+            <p class="incident-desc" id="incidentDescription">
+              Forklift V01 detected at <em>Entrance (Zone A)</em> and predicted to enter <em>Loading Zone (Zone B)</em>. Worker P12 present in the zone.
+            </p>
+          </div>
+
+          <!-- Machine Thumbnail Image -->
+          <div class="machine-thumbnail-wrap">
+            <svg viewBox="0 0 60 60" fill="none" class="machine-svg-thumb">
+              <rect x="10" y="24" width="30" height="22" rx="4" fill="#F59E0B"/>
+              <rect x="22" y="10" width="16" height="16" rx="2" fill="#D97706"/>
+              <rect x="40" y="14" width="4" height="32" rx="2" fill="#334155"/>
+              <rect x="44" y="38" width="12" height="4" rx="1" fill="#334155"/>
+              <circle cx="18" cy="46" r="6" fill="#1E293B"/>
+              <circle cx="18" cy="46" r="3" fill="#64748B"/>
+              <circle cx="34" cy="46" r="6" fill="#1E293B"/>
+              <circle cx="34" cy="46" r="3" fill="#64748B"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Metadata Attributes Row -->
+        <div class="incident-meta-row">
+          <div class="meta-item">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+            <span class="meta-text" id="incidentZoneMeta">Loading Zone (Zone B)</span>
+          </div>
+
+          <div class="meta-item">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <span class="meta-text">ETA <strong id="incidentEtaMeta">4.2 seconds</strong></span>
+          </div>
+
+          <div class="risk-badge-medium" id="incidentRiskBadge">
+            RISK: MEDIUM
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="incident-actions-row">
+          <button class="btn-secondary" id="viewDetailsBtn">
+            View Details
+          </button>
+          <button class="btn-primary-danger" id="notifySupervisorBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+            <span>Notify Supervisor</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- CARD 2: 3D ISOMETRIC SITE MAP -->
+      <div class="hawk-card site-map-card">
+        <div class="site-map-header">
+          <h2 class="card-title">Site Map</h2>
+          <div class="zone-dropdown-pill">
+            <span>All Zones</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Isometric Canvas / Heatmap Representation -->
+        <div class="isometric-canvas-wrap">
+          <svg viewBox="0 0 500 240" fill="none" class="isometric-svg">
+            <defs>
+              <radialGradient id="hazardHeatmap" cx="72%" cy="48%" r="45%">
+                <stop offset="0%" stop-color="#EF4444" stop-opacity="0.85"/>
+                <stop offset="35%" stop-color="#F59E0B" stop-opacity="0.6"/>
+                <stop offset="65%" stop-color="#10B981" stop-opacity="0.35"/>
+                <stop offset="100%" stop-color="#10B981" stop-opacity="0"/>
+              </radialGradient>
+              <linearGradient id="roofGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#E2E8F0"/>
+                <stop offset="100%" stop-color="#CBD5E1"/>
+              </linearGradient>
+            </defs>
+
+            <!-- Ground Base Plane -->
+            <polygon points="250,20 480,130 250,230 20,120" fill="#E8EEF5"/>
+
+            <!-- Roads / Apron -->
+            <polygon points="120,80 380,80 430,170 80,170" fill="#DCE5EF"/>
+
+            <!-- Main Warehouse Isometric Block 1 (Left) -->
+            <polygon points="90,110 170,70 230,100 150,140" fill="url(#roofGrad)"/>
+            <polygon points="150,140 230,100 230,145 150,185" fill="#94A3B8"/>
+            <polygon points="90,110 150,140 150,185 90,155" fill="#64748B"/>
+
+            <!-- Storage Bay Isometric Block 2 (Center) -->
+            <polygon points="210,65 300,30 360,60 270,95" fill="url(#roofGrad)"/>
+            <polygon points="270,95 360,60 360,100 270,135" fill="#94A3B8"/>
+            <polygon points="210,65 270,95 270,135 210,105" fill="#64748B"/>
+
+            <!-- Loading Dock / Incident Bay (Right Area) -->
+            <polygon points="310,110 390,75 440,100 360,135" fill="url(#roofGrad)"/>
+            <polygon points="360,135 440,100 440,140 360,175" fill="#94A3B8"/>
+            <polygon points="310,110 360,135 360,175 310,150" fill="#64748B"/>
+
+            <!-- Dynamic Hazard Heatmap Overlay -->
+            <ellipse cx="360" cy="125" rx="105" ry="60" fill="url(#hazardHeatmap)"/>
+
+            <!-- Little trees / greenery -->
+            <circle cx="65" cy="135" r="7" fill="#10B981" opacity="0.8"/>
+            <circle cx="80" cy="145" r="9" fill="#059669" opacity="0.8"/>
+            <circle cx="100" cy="160" r="8" fill="#10B981" opacity="0.8"/>
+            <circle cx="440" cy="85" r="8" fill="#10B981" opacity="0.8"/>
+
+            <!-- Trucks parked at dock -->
+            <rect x="180" y="170" width="30" height="12" rx="2" fill="#FFFFFF" stroke="#94A3B8" transform="rotate(-15 180 170)"/>
+            <rect x="225" y="180" width="34" height="13" rx="2" fill="#FFFFFF" stroke="#94A3B8" transform="rotate(-15 225 180)"/>
           </svg>
-          SWARM DUAL-CAMERA SYNCHRONIZED FEEDS
-        </h3>
-        <span style="color:var(--text-dim);" id="metricFps">24 FPS</span>
-      </div>
 
-      <div class="panel-body">
-        <div class="dual-video-grid">
-          <!-- Feed 1: Primary Swarm Camera -->
-          <div class="video-container" id="videoContainerA">
-            <img src="/api/stream/video/cam_a" alt="Camera 01 Stream" class="video-element" id="videoStreamA">
-            <div class="video-hud-overlay">
-              <div class="hud-tag" id="hudTagCamA">
-                SWARM CAM 01 (PRIMARY)
-              </div>
-              <div class="local-alert-badge" id="localAlertBadgeA">
-                🚨 LOCAL ALERT (&lt;10ms)
-              </div>
+          <!-- Floating Camera Marker 1 (Entrance) -->
+          <div class="map-cam-marker marker-cam-1">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 7l-7 5 7 5V7z"></path>
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+            </svg>
+            <span>Cam 1</span>
+            <small>Entrance</small>
+          </div>
+
+          <!-- Floating Camera Marker 2 (Aisle 4 Hotspot) -->
+          <div class="map-cam-marker marker-cam-2">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 7l-7 5 7 5V7z"></path>
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+            </svg>
+            <span>Cam 2</span>
+            <small>Aisle 4</small>
+          </div>
+
+          <!-- Map Legend (Top-Right) -->
+          <div class="map-legend-box">
+            <div class="legend-row">
+              <span class="legend-dot dot-red"></span>
+              <span>High Risk</span>
+            </div>
+            <div class="legend-row">
+              <span class="legend-dot dot-amber"></span>
+              <span>Medium Risk</span>
+            </div>
+            <div class="legend-row">
+              <span class="legend-dot dot-green"></span>
+              <span>Low Risk</span>
             </div>
           </div>
 
-          <!-- Feed 2: Synchronized Peer Swarm Camera -->
-          <div class="video-container" id="videoContainerB">
-            <img src="/api/stream/video/cam_b" alt="Camera 02 Stream" class="video-element" id="videoStreamB">
-            <div class="video-hud-overlay">
-              <div class="hud-tag" id="hudTagCamB">
-                SWARM CAM 02 (SYNCHRONIZED PEER)
-              </div>
-              <div class="local-alert-badge" id="localAlertBadgeB">
-                🚨 LOCAL ALERT (&lt;10ms)
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Telemetry Metric Cards -->
-        <div class="metric-row">
-          <div class="metric-card">
-            <div class="label">EST. DISTANCE</div>
-            <div class="value" id="metricDistance">2.4m</div>
-          </div>
-          <div class="metric-card">
-            <div class="label">TIME-TO-COLLISION</div>
-            <div class="value" id="metricTtc">1.6s</div>
-          </div>
-          <div class="metric-card">
-            <div class="label">SAFETY STATE</div>
-            <div class="value" id="metricRisk" style="color:var(--danger-red);">CRITICAL</div>
-          </div>
-        </div>
-
-        <div class="metric-row">
-          <div class="metric-card">
-            <div class="label">WORKERS TRACKED</div>
-            <div class="value" id="metricWorkers">1</div>
-          </div>
-          <div class="metric-card">
-            <div class="label">MACHINERY TRACKED</div>
-            <div class="value" id="metricMachines">1</div>
-          </div>
-          <div class="metric-card">
-            <div class="label">SAFETY ENGINE</div>
-            <div class="value" style="color:var(--safe-green); font-size:14px; margin-top:5px;">DETERMINISTIC</div>
+          <!-- Compass Rose (Bottom-Right) -->
+          <div class="compass-box">
+            <span class="compass-arrow">▲</span>
+            <span class="compass-n">N</span>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Column 2: Facility Zone Map & Swarm Coordination -->
-    <div class="dash-panel">
-      <div class="panel-header">
-        <h3>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-          </svg>
-          FACILITY ZONE MAP & SWARM AGENTS
-        </h3>
-        <span style="color:var(--swarm-purple);">3 AGENTS</span>
-      </div>
-
-      <div class="panel-body">
-        <div class="zone-map-container">
-          <div class="zone-box CRITICAL" id="box_ZONE_01">
-            <div class="zone-name">
-              <span>ZONE 01</span>
-              <span style="color:var(--danger-red);">● CRIT</span>
-            </div>
-            <div class="zone-sub">Main Entrance & Crosswalk</div>
-            <div class="zone-vigilance">
-              VIGILANCE: <strong class="zone-vigilance-val">EMERGENCY</strong>
-            </div>
-          </div>
-
-          <div class="zone-box WARNING" id="box_ZONE_02">
-            <div class="zone-name">
-              <span>ZONE 02</span>
-              <span style="color:var(--warning-amber);">● WARN</span>
-            </div>
-            <div class="zone-sub">Forklift Staging Bay</div>
-            <div class="zone-vigilance">
-              VIGILANCE: <strong class="zone-vigilance-val">HEIGHTENED</strong>
-            </div>
-          </div>
-
-          <div class="zone-box SAFE" id="box_ZONE_03">
-            <div class="zone-name">
-              <span>ZONE 03</span>
-              <span style="color:var(--safe-green);">● SAFE</span>
-            </div>
-            <div class="zone-sub">Heavy Haulage Dock</div>
-            <div class="zone-vigilance">
-              VIGILANCE: <strong class="zone-vigilance-val">NORMAL</strong>
-            </div>
-          </div>
+      <!-- CARD 3: RECENT ALERTS FEED -->
+      <div class="hawk-card recent-alerts-card">
+        <div class="alerts-header">
+          <h2 class="card-title">Recent Alerts</h2>
+          <a href="#" class="view-all-link" id="viewAllAlertsLink">View All →</a>
         </div>
 
-        <div class="panel-header" style="margin-top:4px; padding:6px 10px;">
-          <h4 style="font-size:11px; color:var(--text-muted);">SWARM INTER-ZONE EVENT BUS</h4>
-        </div>
-        <div class="swarm-feed" id="swarmFeed">
-          <div class="swarm-msg">
-            <strong>[ZONE_01 ➔ ZONE_02]</strong> HAZARD_ALERT <span style="color:var(--text-dim);">(W-017 / F-004 ETA: 2s)</span>
+        <div class="alerts-list" id="alertsList">
+          <!-- Alert Item 1 -->
+          <div class="alert-item" data-alert-id="alert-1">
+            <div class="alert-icon-wrap icon-red">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2L1 21h22L12 2zm0 3.5L20.5 19H3.5L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/>
+              </svg>
+            </div>
+            <div class="alert-info">
+              <div class="alert-title-text">Vehicle-Person Proximity</div>
+              <div class="alert-sub-text">Forklift V01 with Worker P12 • Loading Zone</div>
+            </div>
+            <div class="alert-right-col">
+              <span class="alert-time">2 sec ago</span>
+              <span class="alert-tag-critical">CRITICAL</span>
+            </div>
           </div>
-          <div class="swarm-msg">
-            <strong>[ZONE_02 ➔ ZONE_01]</strong> VIGILANCE_ACK <span style="color:var(--text-dim);">(Speed Governor Set)</span>
-          </div>
-        </div>
 
-        <div class="panel-header" style="margin-top:4px; padding:6px 10px;">
-          <h4 style="font-size:11px; color:var(--text-muted);">RENDER CLOUD WORKFLOW STATE</h4>
-        </div>
-        <div class="workflow-pipeline">
-          <div class="wf-step completed" id="wfStepReceived">
-            <div class="wf-dot"></div>
-            <span>RECEIVED</span>
+          <!-- Alert Item 2 -->
+          <div class="alert-item" data-alert-id="alert-2">
+            <div class="alert-icon-wrap icon-amber">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2L1 21h22L12 2zm0 3.5L20.5 19H3.5L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/>
+              </svg>
+            </div>
+            <div class="alert-info">
+              <div class="alert-title-text">No Helmet Detected</div>
+              <div class="alert-sub-text">Worker P07 • Entrance</div>
+            </div>
+            <div class="alert-right-col">
+              <span class="alert-time">3 min ago</span>
+              <span class="alert-tag-medium">MEDIUM</span>
+            </div>
           </div>
-          <div class="wf-step completed" id="wfStepProcessing">
-            <div class="wf-dot"></div>
-            <span>PROCESSING</span>
-          </div>
-          <div class="wf-step completed" id="wfStepAi">
-            <div class="wf-dot"></div>
-            <span>AI ANALYSIS</span>
-          </div>
-          <div class="wf-step completed" id="wfStepKnowledge">
-            <div class="wf-dot"></div>
-            <span>KNOWLEDGE</span>
-          </div>
-          <div class="wf-step completed" id="wfStepCompleted">
-            <div class="wf-dot"></div>
-            <span>COMPLETED</span>
+
+          <!-- Alert Item 3 -->
+          <div class="alert-item" data-alert-id="alert-3">
+            <div class="alert-icon-wrap icon-blue">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+              </svg>
+            </div>
+            <div class="alert-info">
+              <div class="alert-title-text">Restricted Zone Entry</div>
+              <div class="alert-sub-text">Worker P21 • Crane Area</div>
+            </div>
+            <div class="alert-right-col">
+              <span class="alert-time">12 min ago</span>
+              <span class="alert-tag-low">LOW</span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- Column 3: Active Incident & AI Intelligence Layer -->
-    <div class="dash-panel">
-      <div class="panel-header">
-        <h3>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M13 14h-2v-4h2v4zm0 4h-2v-2h2v2zm-12 4h22L12 2 1 22z"/>
-          </svg>
-          ACTIVE INCIDENT & AI ANALYSIS
-        </h3>
-        <span id="incRiskBadge" style="color:var(--danger-red); font-weight:bold;">CRITICAL</span>
-      </div>
-
-      <div class="panel-body">
-        <!-- Incident Metadata Summary -->
-        <div style="background-color:var(--bg-surface-elevated); padding:10px; border-radius:4px; font-family:var(--font-mono); font-size:11px; display:grid; grid-template-columns:1fr 1fr; gap:6px;">
-          <div>WORKER: <strong id="incWorker">W-017</strong></div>
-          <div>MACHINE: <strong id="incMachine">F-004 (Forklift)</strong></div>
-          <div>DISTANCE: <strong id="incDist">2.4m</strong></div>
-          <div>TTC: <strong id="incTtc">1.6s</strong></div>
-          <div>ZONE: <strong id="incZone">ZONE_01</strong></div>
-          <div>ALERT: <strong style="color:var(--danger-red);">LOCAL (<5ms)</strong></div>
-        </div>
-
-        <!-- AI Reasoning Card -->
-        <div class="ai-card">
-          <div class="ai-header">
-            <span>AI SAFETY AGENT (ADAPTION)</span>
-            <span id="aiConfidence">CONF: 94%</span>
-          </div>
-          <div class="ai-reason" id="aiReason">
-            Forklift (F-004) and pedestrian (W-017) converging rapidly on a blind corner at entrance. Time-To-Collision (1.6s) is below critical emergency braking threshold.
-          </div>
-
-          <div class="ai-section-title">PREDICTED ESCALATION</div>
-          <div style="font-size:12px; color:#ff8a80;" id="aiPredicted">
-            Imminent crush collision within 1.5 seconds if vehicle or worker does not yield.
-          </div>
-
-          <div class="ai-section-title">CONTRIBUTING FACTORS</div>
-          <ul class="ai-list" id="aiFactors">
-            <li>Blind corner approach at entrance of ZONE_01</li>
-            <li>Ground distance (2.4m) violates 3.0m OSHA safety exclusion buffer</li>
-            <li>Mutual trajectory convergence with relative closing speed of 1.5m/s</li>
-          </ul>
-
-          <div class="ai-section-title">RECOMMENDED ACTIONS</div>
-          <ul class="ai-list" id="aiActions">
-            <li>Sound vehicle horn and apply machine emergency brake override</li>
-            <li>Direct worker W-017 to safety refuge bay immediately</li>
-            <li>Dispatch EHS spotter to entrance intersection</li>
-          </ul>
-        </div>
-
-        <!-- Firecrawl Knowledge Used -->
-        <div class="ai-section-title" style="margin-top:2px;">KNOWLEDGE USED (FIRECRAWL OSHA RETRIEVAL)</div>
-        <div class="knowledge-badge" id="knowledgeCitation">
-          <strong>OSHA 1910.178(n)(4) - Powered Industrial Trucks: Speed and Blind Intersections</strong><br>
-          <span style="color:#aaa;">Source: OSHA General Industry Safety Regulations</span>
-        </div>
-      </div>
-    </div>
+    </section>
 
   </main>
 
-  <!-- Bottom Section: Sub-Second Incident Timeline -->
-  <section class="timeline-section">
-    <div class="timeline-card">
-      <div class="timeline-header">
-        <span style="color:var(--text-muted); font-weight:700;">
-          SUB-SECOND INCIDENT TIMELINE (SEPARATION OF LOCAL SAFETY VS. AI REASONING)
-        </span>
-        <span style="color:var(--safe-green);">FAST-PATH DETERMINISTIC &lt;5ms</span>
+  <!-- Modern Light Footer -->
+  <footer class="hawk-footer">
+    <div class="footer-left">
+      <span class="footer-brand">HAWK</span>
+      <span class="footer-tagline">AI for a Safer Tomorrow.</span>
+    </div>
+    <div class="footer-right">
+      <button class="footer-audio-toggle" id="audioToggleBtn" title="Toggle Acoustic Siren">
+        <span class="status-green-dot"></span>
+        <span class="audio-waveform-icon">ılıllı</span>
+        <span id="audioBtnText">Monitoring Live...</span>
+      </button>
+    </div>
+  </footer>
+
+  <!-- Deep AI Analysis & OSHA Compliance Modal -->
+  <div class="modal-overlay" id="incidentModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="modal-badge-red">ADAPTION AI ROOT CAUSE</span>
+          <h2 class="modal-headline" id="modalTitle">Incident Analysis: Vehicle Approaching Zone B</h2>
+        </div>
+        <button class="modal-close-btn" id="modalCloseBtn">✕</button>
       </div>
 
-      <div class="timeline-track" id="timelineTrack">
-        <div class="timeline-event">
-          <div class="timeline-time">14:32:01.100</div>
-          <div class="timeline-desc">Worker W-017 Detected</div>
+      <div class="modal-body">
+        <div class="modal-meta-grid">
+          <div class="modal-meta-item">
+            <span class="m-label">AFFECTED WORKER</span>
+            <strong class="m-val" id="modalWorker">Worker P12 (Interior)</strong>
+          </div>
+          <div class="modal-meta-item">
+            <span class="m-label">MACHINERY</span>
+            <strong class="m-val" id="modalMachine">Forklift V01 (Toyota Core Electric)</strong>
+          </div>
+          <div class="modal-meta-item">
+            <span class="m-label">CLOSING DISTANCE</span>
+            <strong class="m-val" id="modalDist">2.4 meters</strong>
+          </div>
+          <div class="modal-meta-item">
+            <span class="m-label">AI CONFIDENCE</span>
+            <strong class="m-val" style="color:#2563EB;" id="modalConf">94%</strong>
+          </div>
         </div>
-        <div class="timeline-event">
-          <div class="timeline-time">14:32:01.180</div>
-          <div class="timeline-desc">Forklift F-004 Detected</div>
-        </div>
-        <div class="timeline-event">
-          <div class="timeline-time">14:32:01.220</div>
-          <div class="timeline-desc">Tracking & Trajectory Estimated</div>
-        </div>
-        <div class="timeline-event">
-          <div class="timeline-time">14:32:01.240</div>
-          <div class="timeline-desc">TTC = 1.6s (&lt; 2.0s Threshold)</div>
-        </div>
-        <div class="timeline-event local-alert">
-          <div class="timeline-time">14:32:01.245</div>
-          <div class="timeline-desc">🚨 LOCAL ALERT TRIGGERED (&lt;5ms)</div>
-        </div>
-        <div class="timeline-event">
-          <div class="timeline-time">14:32:01.350</div>
-          <div class="timeline-desc">Swarm Alert to Zone 02</div>
-        </div>
-        <div class="timeline-event ai-done">
-          <div class="timeline-time">14:32:02.650</div>
-          <div class="timeline-desc">AI Agent Analysis Complete</div>
-        </div>
-        <div class="timeline-event">
-          <div class="timeline-time">14:32:02.900</div>
-          <div class="timeline-desc">Render Workflow & n8n Done</div>
+
+        <div class="modal-section-title">PREDICTED ESCALATION</div>
+        <p class="modal-escalation-text" id="modalEscalation">
+          Immediate blind-corner crush hazard within 1.7 seconds if pedestrian does not evacuate door radius.
+        </p>
+
+        <div class="modal-section-title">CONTRIBUTING RISK FACTORS</div>
+        <ul class="modal-list" id="modalFactors">
+          <li>Blind corner partition obstructing operator and worker mutual sightlines.</li>
+          <li>Forklift velocity exceeds 5 km/h threshold for interior threshold crossings.</li>
+          <li>Pedestrian pathway lack of physical swing-gate barrier.</li>
+        </ul>
+
+        <div class="modal-section-title">RECOMMENDED CORRECTIVE ACTIONS</div>
+        <ul class="modal-list" id="modalActions">
+          <li>Swarm Node 02 audible warning activated: 'Clear Entrance Immediately'.</li>
+          <li>Automated electric speed governor engaged on Forklift F-004.</li>
+          <li>Dispatch acoustic chime and floor-projected blue warning halo.</li>
+        </ul>
+
+        <!-- OSHA Regulatory Standard Citation -->
+        <div class="osha-citation-card">
+          <div class="osha-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#D97706">
+              <path d="M12 2L1 21h22L12 2zm0 3.5L20.5 19H3.5L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/>
+            </svg>
+            <strong>REGULATORY CITATION (FIRECRAWL OSHA INGESTION)</strong>
+          </div>
+          <p class="osha-code" id="modalOshaCode">OSHA 1910.178(n)(4) - Powered Industrial Trucks: Blind Intersections</p>
+          <p class="osha-desc" id="modalOshaDesc">The driver shall be required to slow down and sound the horn at cross aisles and other locations where vision is obstructed.</p>
         </div>
       </div>
+
+      <div class="modal-footer">
+        <button class="modal-dismiss-btn" id="modalDismissBtn">Close Analysis</button>
+        <button class="modal-action-btn" id="modalDispatchN8nBtn">Dispatch n8n Escalation</button>
+      </div>
     </div>
-  </section>
+  </div>
 
   <script src="/static/js/audio_siren.js"></script>
   <script src="/static/js/app.js"></script>

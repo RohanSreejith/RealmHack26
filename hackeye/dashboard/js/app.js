@@ -1,107 +1,171 @@
 /**
- * Hack-Eye Main Operations Dashboard Controller
- * Real-time telemetry, local siren coordination, dual-camera swarm feeds, and demo scenarios.
+ * HAWK Operations Dashboard Controller
+ * Real-time dual camera swarm feeds, incident handling, and AI safety intelligence.
  */
 document.addEventListener("DOMContentLoaded", () => {
-  // Elements - Dual Swarm Camera Feeds
+  // Video Stream Elements
   const videoStreamA = document.getElementById("videoStreamA");
   const videoStreamB = document.getElementById("videoStreamB");
-  const videoContainerA = document.getElementById("videoContainerA");
-  const videoContainerB = document.getElementById("videoContainerB");
-  const localAlertBadgeA = document.getElementById("localAlertBadgeA");
-  const localAlertBadgeB = document.getElementById("localAlertBadgeB");
-  const hudTagCamA = document.getElementById("hudTagCamA");
-  const hudTagCamB = document.getElementById("hudTagCamB");
+  const camNameA = document.getElementById("camNameA");
+  const camLocationA = document.getElementById("camLocationA");
+  const camNameB = document.getElementById("camNameB");
+  const camLocationB = document.getElementById("camLocationB");
+  const camTimeA = document.getElementById("camTimeA");
+  const camTimeB = document.getElementById("camTimeB");
+
+  // Bounding Box Elements
+  const bboxForkliftTagA = document.getElementById("bboxForkliftTagA");
+  const bboxWorkerTagA = document.getElementById("bboxWorkerTagA");
+  const bboxForkliftTagB = document.getElementById("bboxForkliftTagB");
+  const bboxWorkerTagB = document.getElementById("bboxWorkerTagB");
+
+  // Active Incident Card Elements
+  const incidentTitle = document.getElementById("incidentTitle");
+  const incidentDescription = document.getElementById("incidentDescription");
+  const incidentCountdown = document.getElementById("incidentCountdown");
+  const incidentZoneMeta = document.getElementById("incidentZoneMeta");
+  const incidentEtaMeta = document.getElementById("incidentEtaMeta");
+  const incidentRiskBadge = document.getElementById("incidentRiskBadge");
+  const viewDetailsBtn = document.getElementById("viewDetailsBtn");
+  const notifySupervisorBtn = document.getElementById("notifySupervisorBtn");
+
+  // Modal Elements
+  const incidentModal = document.getElementById("incidentModal");
+  const modalCloseBtn = document.getElementById("modalCloseBtn");
+  const modalDismissBtn = document.getElementById("modalDismissBtn");
+  const modalDispatchN8nBtn = document.getElementById("modalDispatchN8nBtn");
+  const modalTitle = document.getElementById("modalTitle");
+  const modalWorker = document.getElementById("modalWorker");
+  const modalMachine = document.getElementById("modalMachine");
+  const modalDist = document.getElementById("modalDist");
+  const modalConf = document.getElementById("modalConf");
+  const modalEscalation = document.getElementById("modalEscalation");
+  const modalFactors = document.getElementById("modalFactors");
+  const modalActions = document.getElementById("modalActions");
+  const modalOshaCode = document.getElementById("modalOshaCode");
+  const modalOshaDesc = document.getElementById("modalOshaDesc");
+
+  // Clocks
+  const liveDate = document.getElementById("liveDate");
+  const liveClock = document.getElementById("liveClock");
+
+  // Controls
+  const scenarioPills = document.querySelectorAll(".scenario-pill[data-scenario]");
+  const cloudToggleBtn = document.getElementById("cloudToggleBtn");
   const audioToggleBtn = document.getElementById("audioToggleBtn");
-  
-  // Status Bar Elements
-  const edgeStatusBadge = document.getElementById("edgeStatusBadge");
-  const cloudStatusBadge = document.getElementById("cloudStatusBadge");
-  const facilityScoreBadge = document.getElementById("facilityScoreBadge");
-
-  // Metrics
-  const metricWorkers = document.getElementById("metricWorkers");
-  const metricMachines = document.getElementById("metricMachines");
-  const metricFps = document.getElementById("metricFps");
-  const metricDistance = document.getElementById("metricDistance");
-  const metricTtc = document.getElementById("metricTtc");
-  const metricRisk = document.getElementById("metricRisk");
-
-  // Active Incident Elements
-  const incWorker = document.getElementById("incWorker");
-  const incMachine = document.getElementById("incMachine");
-  const incDist = document.getElementById("incDist");
-  const incTtc = document.getElementById("incTtc");
-  const incZone = document.getElementById("incZone");
-  const incRiskBadge = document.getElementById("incRiskBadge");
-
-  // AI & Knowledge Elements
-  const aiReason = document.getElementById("aiReason");
-  const aiPredicted = document.getElementById("aiPredicted");
-  const aiFactors = document.getElementById("aiFactors");
-  const aiActions = document.getElementById("aiActions");
-  const aiConfidence = document.getElementById("aiConfidence");
-  const knowledgeCitation = document.getElementById("knowledgeCitation");
-
-  // Swarm & Workflow Elements
-  const swarmFeed = document.getElementById("swarmFeed");
-  const wfStepReceived = document.getElementById("wfStepReceived");
-  const wfStepProcessing = document.getElementById("wfStepProcessing");
-  const wfStepAi = document.getElementById("wfStepAi");
-  const wfStepKnowledge = document.getElementById("wfStepKnowledge");
-  const wfStepCompleted = document.getElementById("wfStepCompleted");
-
-  // Timeline
-  const timelineTrack = document.getElementById("timelineTrack");
+  const audioBtnText = document.getElementById("audioBtnText");
 
   let isCloudConnected = true;
-  let activeAlertPlaying = false;
+  let activeIncidentData = null;
 
-  // Audio Siren Toggle
-  audioToggleBtn.addEventListener("click", () => {
-    const muted = window.localSiren.toggleMute();
-    audioToggleBtn.textContent = muted ? "🔇 AUDIO MUTED" : "🔊 ALARM ACTIVE";
-    audioToggleBtn.classList.toggle("sound-on", !muted);
-  });
+  // 1. Live Real-Time Digital Clock
+  function updateLiveClock() {
+    const now = new Date();
+    const dateOpts = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
+    if (liveDate) liveDate.textContent = now.toLocaleDateString('en-GB', dateOpts);
+    
+    const timeStr = now.toTimeString().split(' ')[0];
+    if (liveClock) liveClock.textContent = timeStr;
+    if (camTimeA) camTimeA.textContent = timeStr;
+    if (camTimeB) camTimeB.textContent = timeStr;
+  }
+  setInterval(updateLiveClock, 1000);
+  updateLiveClock();
 
-  // Demo Scenario Buttons (6 Swarm Multi-Angle Scenarios)
-  const demoButtons = document.querySelectorAll(".demo-btn[data-scenario]");
-  demoButtons.forEach(btn => {
-    btn.addEventListener("click", async () => {
-      demoButtons.forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      const scenario = btn.getAttribute("data-scenario");
+  // 2. Fullscreen & Snapshot Handlers
+  const setupCamControls = (btnId, videoId) => {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      const vid = document.getElementById(videoId);
+      if (vid && vid.requestFullscreen) {
+        vid.requestFullscreen();
+      }
+    });
+  };
+  setupCamControls("fullscreenBtnA", "videoStreamA");
+  setupCamControls("fullscreenBtnB", "videoStreamB");
+
+  // 3. Audio Alarm Toggle
+  if (audioToggleBtn) {
+    audioToggleBtn.addEventListener("click", () => {
+      const muted = window.localSiren.toggleMute();
+      if (audioBtnText) {
+        audioBtnText.textContent = muted ? "Audio Muted" : "Monitoring Live...";
+      }
+    });
+  }
+
+  // 4. Scenario Switching (6 Dual-Camera Scenarios)
+  scenarioPills.forEach(pill => {
+    pill.addEventListener("click", async () => {
+      scenarioPills.forEach(p => p.classList.remove("active"));
+      pill.classList.add("active");
+
+      const scenario = pill.getAttribute("data-scenario");
       try {
         const res = await fetch(`/api/demo/scenario/${scenario}`, { method: "POST" });
         const data = await res.json();
-        console.log("[Demo] Triggered:", data);
-        
-        // Refresh both synchronized video stream sources concurrently
+        console.log("[HAWK Scenario Activated]:", data);
+        activeIncidentData = data;
+
+        // Refresh streams
         const t = Date.now();
         if (videoStreamA) videoStreamA.src = `/api/stream/video/cam_a?t=${t}`;
         if (videoStreamB) videoStreamB.src = `/api/stream/video/cam_b?t=${t}`;
 
-        // Update Camera HUD Zone Tags
-        if (hudTagCamA && data.zone_a) hudTagCamA.textContent = data.zone_a;
-        if (hudTagCamB && data.zone_b) hudTagCamB.textContent = data.zone_b;
-        
-        if (data.local_alert || data.risk_level === "CRITICAL" || data.risk_level === "WARNING") {
-          triggerVisualAndAudioAlert(data.incident, data.title);
-        }
-        if (data.ai_analysis) {
-          updateAiCard(data.ai_analysis);
-        }
-        if (data.swarm_event) {
-          appendSwarmFeed(data.swarm_event);
+        // Update Cam labels
+        if (data.zone_a && camLocationA) camLocationA.textContent = data.zone_a;
+        if (data.zone_b && camLocationB) camLocationB.textContent = data.zone_b;
+
+        // Update Incident Card
+        updateIncidentCard(data);
+
+        // Play brief alarm if critical
+        if (data.risk_level === "CRITICAL" && window.localSiren && !window.localSiren.muted) {
+          window.localSiren.triggerTone(0.6);
         }
       } catch (err) {
-        console.error("Demo scenario error:", err);
+        console.error("Scenario switch error:", err);
       }
     });
   });
 
-  // Cloud Disconnect / Reconnect Toggle
-  const cloudToggleBtn = document.getElementById("cloudToggleBtn");
+  function updateIncidentCard(data) {
+    const inc = data.incident || {};
+    const ai = data.ai_analysis || {};
+
+    if (incidentTitle) incidentTitle.textContent = data.title || "Active Safety Breach";
+    if (incidentDescription && ai.reason) incidentDescription.textContent = ai.reason;
+    if (incidentZoneMeta) incidentZoneMeta.textContent = inc.zone || "Zone A / B";
+    if (incidentEtaMeta) incidentEtaMeta.textContent = `${inc.ttc_seconds || 2.4} seconds`;
+    if (incidentCountdown) incidentCountdown.textContent = `In ~ ${inc.ttc_seconds || 2.4} seconds`;
+
+    if (incidentRiskBadge) {
+      incidentRiskBadge.textContent = `RISK: ${data.risk_level || 'MEDIUM'}`;
+      incidentRiskBadge.className = data.risk_level === 'CRITICAL' ? 'risk-badge-critical' : 'risk-badge-medium';
+    }
+
+    // Bounding Box customization per scenario
+    if (data.scenario === 'scenario_2_box_no_helmet') {
+      if (bboxForkliftTagA) bboxForkliftTagA.textContent = "Overhead Bay 0.94";
+      if (bboxWorkerTagA) bboxWorkerTagA.textContent = "No Helmet 0.96";
+      if (bboxForkliftTagB) bboxForkliftTagB.textContent = "Cargo Crate 0.92";
+      if (bboxWorkerTagB) bboxWorkerTagB.textContent = "No Helmet 0.94";
+    } else if (data.scenario === 'scenario_3_fire') {
+      if (bboxForkliftTagA) bboxForkliftTagA.textContent = "Fire Plume 0.97";
+      if (bboxWorkerTagA) bboxWorkerTagA.textContent = "Smoke Haze 0.91";
+      if (bboxForkliftTagB) bboxForkliftTagB.textContent = "Ceiling Fire 0.98";
+      if (bboxWorkerTagB) bboxWorkerTagB.textContent = "Evacuation 0.89";
+    } else {
+      if (bboxForkliftTagA) bboxForkliftTagA.textContent = "Forklift 0.91";
+      if (bboxWorkerTagA) bboxWorkerTagA.textContent = "Worker 0.87";
+      if (bboxForkliftTagB) bboxForkliftTagB.textContent = "Forklift 0.89";
+      if (bboxWorkerTagB) bboxWorkerTagB.textContent = "Worker 0.93";
+    }
+  }
+
+  // 5. Cloud Disconnect Toggle
   if (cloudToggleBtn) {
     cloudToggleBtn.addEventListener("click", async () => {
       isCloudConnected = !isCloudConnected;
@@ -112,221 +176,119 @@ document.addEventListener("DOMContentLoaded", () => {
           body: JSON.stringify({ connected: isCloudConnected })
         });
         const data = await res.json();
-        
-        cloudToggleBtn.textContent = isCloudConnected ? "DISCONNECT CLOUD" : "RECONNECT CLOUD";
-        cloudStatusBadge.innerHTML = `<span class="badge-dot"></span> ${data.status_text}`;
-        cloudStatusBadge.className = isCloudConnected ? "badge badge-green" : "badge badge-red";
-        
+        cloudToggleBtn.textContent = isCloudConnected ? "Disconnect Cloud" : "Reconnect Cloud";
+        cloudToggleBtn.style.backgroundColor = isCloudConnected ? "#FEF2F2" : "#ECFDF5";
+        cloudToggleBtn.style.color = isCloudConnected ? "#DC2626" : "#059669";
         console.log("[Cloud Toggle]:", data);
       } catch (err) {
-        console.error("Cloud toggle failed:", err);
+        console.error("Cloud toggle error:", err);
       }
     });
   }
 
-  // Main Telemetry Polling Loop (400ms)
-  async function pollTelemetry() {
-    try {
-      const res = await fetch("/api/stream/telemetry");
-      if (res.ok) {
-        const data = await res.json();
-        updateTelemetryUI(data);
-      }
-    } catch (e) {}
-    setTimeout(pollTelemetry, 400);
+  // 6. View Details Modal
+  if (viewDetailsBtn) {
+    viewDetailsBtn.addEventListener("click", () => {
+      populateModal();
+      if (incidentModal) incidentModal.classList.add("active");
+    });
   }
 
-  // Workflow & Swarm Polling Loop (1200ms)
-  async function pollWorkflowAndSwarm() {
-    try {
-      const wfRes = await fetch("/api/workflows/latest");
-      if (wfRes.ok) {
-        const wf = await wfRes.json();
-        updateWorkflowUI(wf);
-      }
+  const closeModal = () => {
+    if (incidentModal) incidentModal.classList.remove("active");
+  };
+  if (modalCloseBtn) modalCloseBtn.addEventListener("click", closeModal);
+  if (modalDismissBtn) modalDismissBtn.addEventListener("click", closeModal);
 
-      const swarmRes = await fetch("/api/swarm/status");
-      if (swarmRes.ok) {
-        const swarmData = await swarmRes.json();
-        updateSwarmUI(swarmData);
-      }
-
-      const analyticsRes = await fetch("/api/analytics");
-      if (analyticsRes.ok) {
-        const analytics = await analyticsRes.json();
-        facilityScoreBadge.textContent = `RISK INDEX: ${analytics.safety_score}/100`;
-      }
-    } catch (e) {}
-    setTimeout(pollWorkflowAndSwarm, 1400);
+  // Click outside to close modal
+  if (incidentModal) {
+    incidentModal.addEventListener("click", (e) => {
+      if (e.target === incidentModal) closeModal();
+    });
   }
 
-  function updateTelemetryUI(data) {
-    metricFps.textContent = `${data.fps || 24} FPS`;
-    
-    const workers = (data.active_tracks || []).filter(t => t.industrial_type === "worker");
-    const machines = (data.active_tracks || []).filter(t => t.industrial_type !== "worker");
-    metricWorkers.textContent = workers.length || 1;
-    metricMachines.textContent = machines.length || 1;
-
-    // Proximities
-    if (data.proximities && data.proximities.length > 0) {
-      const p = data.proximities[0];
-      metricDistance.textContent = `${p.estimated_distance_m}m`;
-      metricTtc.textContent = p.ttc_seconds ? `${p.ttc_seconds}s` : "< 2.0s";
-      metricRisk.textContent = data.status;
-      metricRisk.style.color = data.status === "CRITICAL" ? "var(--danger-red)" : 
-                               (data.status === "WARNING" ? "var(--warning-amber)" : "var(--safe-green)");
-    } else {
-      metricDistance.textContent = "2.4m";
-      metricTtc.textContent = "1.7s";
-      metricRisk.textContent = data.status;
-      metricRisk.style.color = data.status === "CRITICAL" ? "var(--danger-red)" : "var(--safe-green)";
+  function populateModal() {
+    if (!activeIncidentData) {
+      // Default initial data
+      if (modalTitle) modalTitle.textContent = "Incident Analysis: Vehicle Approaching Zone B";
+      if (modalWorker) modalWorker.textContent = "Worker P12 (Interior Entrance)";
+      if (modalMachine) modalMachine.textContent = "Forklift V01 (Toyota Core Electric)";
+      if (modalDist) modalDist.textContent = "2.4 meters";
+      if (modalConf) modalConf.textContent = "94%";
+      return;
     }
 
-    // Active Incident & Siren Handling
-    if (data.local_alert_active || data.status === "CRITICAL") {
-      triggerVisualAndAudioAlert(data.active_incident);
-    } else {
-      clearVisualAndAudioAlert();
-    }
-  }
+    const inc = activeIncidentData.incident || {};
+    const ai = activeIncidentData.ai_analysis || {};
 
-  function triggerVisualAndAudioAlert(incident, scenarioTitle) {
-    if (videoContainerA) videoContainerA.classList.add("critical-alert-border");
-    if (videoContainerB) videoContainerB.classList.add("critical-alert-border");
-    if (localAlertBadgeA) localAlertBadgeA.style.display = "inline-block";
-    if (localAlertBadgeB) localAlertBadgeB.style.display = "inline-block";
-    
-    if (!activeAlertPlaying) {
-      window.localSiren.startEmergencySiren();
-      activeAlertPlaying = true;
+    if (modalTitle) modalTitle.textContent = `Incident Analysis: ${activeIncidentData.title}`;
+    if (modalWorker) modalWorker.textContent = inc.worker_id || "Worker W-017";
+    if (modalMachine) modalMachine.textContent = inc.machine_id ? `${inc.machine_id} (${inc.machine_type})` : "Forklift F-004";
+    if (modalDist) modalDist.textContent = `${inc.distance_m || 2.4} meters`;
+    if (modalConf) modalConf.textContent = `${Math.round((ai.confidence || 0.94) * 100)}%`;
+
+    if (modalEscalation) modalEscalation.textContent = ai.predicted_outcome || "Imminent blind-corner crush hazard within 1.7 seconds if pedestrian does not yield.";
+
+    if (modalFactors && ai.contributing_factors) {
+      modalFactors.innerHTML = ai.contributing_factors.map(f => `<li>${f}</li>`).join("");
     }
 
-    if (incident) {
-      incWorker.textContent = incident.worker_id || "W-017";
-      incMachine.textContent = `${incident.machine_id || "F-004"} (${incident.machine_type || "forklift"})`;
-      incDist.textContent = `${incident.distance_m || 2.1}m`;
-      incTtc.textContent = incident.ttc_seconds ? `${incident.ttc_seconds}s` : "< 1.5s";
-      incZone.textContent = incident.zone || "ZONE_01";
-      incRiskBadge.textContent = incident.risk_level || "CRITICAL";
-      incRiskBadge.style.color = incident.risk_level === "CRITICAL" ? "var(--danger-red)" : "var(--warning-amber)";
-
-      generateIncidentTimeline(incident, scenarioTitle);
+    if (modalActions && ai.recommended_actions) {
+      modalActions.innerHTML = ai.recommended_actions.map(a => `<li>${a}</li>`).join("");
     }
-  }
 
-  function clearVisualAndAudioAlert() {
-    if (videoContainerA) videoContainerA.classList.remove("critical-alert-border");
-    if (videoContainerB) videoContainerB.classList.remove("critical-alert-border");
-    if (localAlertBadgeA) localAlertBadgeA.style.display = "none";
-    if (localAlertBadgeB) localAlertBadgeB.style.display = "none";
-    if (activeAlertPlaying) {
-      window.localSiren.stopSiren();
-      activeAlertPlaying = false;
-    }
-  }
-
-  function updateAiCard(ai) {
-    if (!ai) return;
-    aiReason.textContent = ai.reason || "Autonomous safety agent reasoning.";
-    aiPredicted.textContent = ai.predicted_outcome || "Immediate path intersection probable.";
-    aiConfidence.textContent = `CONF: ${Math.round((ai.confidence || 0.95) * 100)}%`;
-
-    if (ai.contributing_factors) {
-      aiFactors.innerHTML = ai.contributing_factors.map(f => `<li>${f}</li>`).join("");
-    }
-    if (ai.recommended_actions) {
-      aiActions.innerHTML = ai.recommended_actions.map(a => `<li>${a}</li>`).join("");
-    }
     if (ai.knowledge_used && ai.knowledge_used.length > 0) {
       const k = ai.knowledge_used[0];
-      knowledgeCitation.innerHTML = `<strong>${k.title}</strong><br><span style="color:#aaa;">Source: ${k.source}</span>`;
+      if (modalOshaCode) modalOshaCode.textContent = k.title || "OSHA 1910.178 - Industrial Safety";
+      if (modalOshaDesc) modalOshaDesc.textContent = k.summary || "Mandatory audible warning horn and 3m pedestrian clearance.";
     }
   }
 
-  function updateWorkflowUI(wf) {
-    if (!wf || !wf.current_step) return;
-    const steps = ["RECEIVED", "PROCESSING", "AI_ANALYSIS", "KNOWLEDGE_LOOKUP", "COMPLETED"];
-    const curIdx = steps.indexOf(wf.current_step);
+  // 7. Notify Supervisor Action Button
+  if (notifySupervisorBtn) {
+    notifySupervisorBtn.addEventListener("click", async () => {
+      // Visual feedback
+      const originalText = notifySupervisorBtn.innerHTML;
+      notifySupervisorBtn.innerHTML = `<span>Dispatching n8n Alert...</span>`;
+      
+      // Sound local tone
+      if (window.localSiren && !window.localSiren.muted) {
+        window.localSiren.triggerTone(0.8);
+      }
 
-    const stepElements = [wfStepReceived, wfStepProcessing, wfStepAi, wfStepKnowledge, wfStepCompleted];
-    stepElements.forEach((el, idx) => {
-      if (!el) return;
-      el.classList.remove("active", "completed");
-      if (idx < curIdx) {
-        el.classList.add("completed");
-      } else if (idx === curIdx) {
-        el.classList.add(wf.completed ? "completed" : "active");
+      try {
+        const res = await fetch("/api/n8n/trigger-test", { method: "POST" });
+        const data = await res.json();
+        console.log("[n8n Alert Dispatched]:", data);
+        notifySupervisorBtn.innerHTML = `<span>✓ Dispatched to Slack &amp; Phone!</span>`;
+        setTimeout(() => {
+          notifySupervisorBtn.innerHTML = originalText;
+        }, 2500);
+      } catch (err) {
+        console.error("n8n dispatch error:", err);
+        notifySupervisorBtn.innerHTML = originalText;
       }
     });
   }
 
-  function appendSwarmFeed(ev) {
-    if (!ev || !swarmFeed) return;
-    const div = document.createElement("div");
-    div.className = "swarm-msg";
-    div.innerHTML = `<strong>[${ev.source_zone} ➔ ${ev.destination_zone}]</strong> ${ev.event} <span style="color:var(--text-dim);">(Risk:${ev.risk})</span>`;
-    swarmFeed.prepend(div);
-  }
-
-  function updateSwarmUI(data) {
-    if (!data || !data.zones) return;
-    const zones = data.zones;
-    
-    for (const [zid, zdata] of Object.entries(zones)) {
-      const box = document.getElementById(`box_${zid}`);
-      if (box) {
-        box.className = `zone-box ${zdata.status}`;
-        const vig = box.querySelector(".zone-vigilance-val");
-        if (vig) vig.textContent = zdata.vigilance_level;
+  if (modalDispatchN8nBtn) {
+    modalDispatchN8nBtn.addEventListener("click", async () => {
+      try {
+        await fetch("/api/n8n/trigger-test", { method: "POST" });
+        alert("🚨 Incident successfully escalated to supervisor via n8n webhook and SMS!");
+        closeModal();
+      } catch (e) {
+        closeModal();
       }
-    }
+    });
   }
 
-  function generateIncidentTimeline(inc, scenarioTitle) {
-    const t0 = new Date();
-    const formatTime = (dt, offsetMs) => {
-      const d = new Date(dt.getTime() + offsetMs);
-      return `${d.toTimeString().split(' ')[0]}.${String(d.getMilliseconds()).padStart(3, '0')}`;
-    };
-
-    timelineTrack.innerHTML = `
-      <div class="timeline-event">
-        <div class="timeline-time">${formatTime(t0, -320)}</div>
-        <div class="timeline-desc">Swarm Cam 01 & 02 Synchronized</div>
-      </div>
-      <div class="timeline-event">
-        <div class="timeline-time">${formatTime(t0, -210)}</div>
-        <div class="timeline-desc">Entities Detected: ${inc.worker_id || 'Worker'} & ${inc.machine_id || 'Machine'}</div>
-      </div>
-      <div class="timeline-event">
-        <div class="timeline-time">${formatTime(t0, -110)}</div>
-        <div class="timeline-desc">Multi-Angle Trajectory Convergence Verified</div>
-      </div>
-      <div class="timeline-event">
-        <div class="timeline-time">${formatTime(t0, -75)}</div>
-        <div class="timeline-desc">TTC = ${inc.ttc_seconds || '1.7'}s (&lt; 2.0s Threshold)</div>
-      </div>
-      <div class="timeline-event local-alert">
-        <div class="timeline-time">${formatTime(t0, -70)}</div>
-        <div class="timeline-desc">🚨 LOCAL ALERT TRIGGERED (&lt;5ms)</div>
-      </div>
-      <div class="timeline-event">
-        <div class="timeline-time">${formatTime(t0, 110)}</div>
-        <div class="timeline-desc">Swarm Broadcast to Peer Camera Nodes</div>
-      </div>
-      <div class="timeline-event ai-done">
-        <div class="timeline-time">${formatTime(t0, 1420)}</div>
-        <div class="timeline-desc">AI Reasoning & OSHA Retrieval Complete</div>
-      </div>
-      <div class="timeline-event">
-        <div class="timeline-time">${formatTime(t0, 1680)}</div>
-        <div class="timeline-desc">Render Cloud & n8n Workflows Done</div>
-      </div>
-    `;
-  }
-
-  // Start polling loops
-  pollTelemetry();
-  pollWorkflowAndSwarm();
+  // Load initial scenario 1 on startup
+  fetch("/api/demo/scenario/scenario_1_entrance", { method: "POST" })
+    .then(res => res.json())
+    .then(data => {
+      activeIncidentData = data;
+      updateIncidentCard(data);
+    })
+    .catch(() => {});
 });
