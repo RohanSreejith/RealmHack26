@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse
 from hackeye.backend.config import settings
 from hackeye.backend.database.db import init_db
 from hackeye.backend.api.routes import router as api_router
-from hackeye.backend.services.video_stream import video_processor
+from hackeye.backend.services.video_stream import dual_camera_manager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -20,16 +20,14 @@ async def lifespan(app: FastAPI):
     print("[Hack-Eye] Initializing edge database schema...")
     init_db()
     
-    # Auto-start default video processing on uploaded clip if available
-    default_video = "videos/forklift_approaching_entrance.mp4"
-    if os.path.exists(default_video):
-        video_processor.start_stream(default_video)
+    # Auto-start default swarm dual-camera streams
+    dual_camera_manager.start_all()
     
     yield
     
     # Shutdown
-    print("[Hack-Eye] Stopping edge video processor...")
-    video_processor.stop_stream()
+    print("[Hack-Eye] Stopping edge swarm stream processors...")
+    dual_camera_manager.stop_all()
 
 app = FastAPI(
     title=settings.APP_NAME,

@@ -51,12 +51,12 @@
       DEMO CONTROLS:
     </div>
     <div class="demo-buttons">
-      <button class="demo-btn" data-scenario="scenario_1_safe">1. SAFE TRANSIT</button>
-      <button class="demo-btn" data-scenario="scenario_2_warning">2. WARNING ZONE</button>
-      <button class="demo-btn active" data-scenario="scenario_3_critical">3. CRITICAL BREACH (TTC &lt; 2s)</button>
-      <button class="demo-btn" data-scenario="scenario_4_converging">4. CONVERGING TRAJECTORY</button>
-      <button class="demo-btn" data-scenario="scenario_5_repeat">5. REPEATED NEAR-MISS</button>
-      <button class="demo-btn" data-scenario="scenario_6_swarm">6. SWARM ZONE HANDOFF</button>
+      <button class="demo-btn active" data-scenario="scenario_1_entrance">1. FORKLIFT ENTRANCE EVASION</button>
+      <button class="demo-btn" data-scenario="scenario_2_box_no_helmet">2. BOX PICKUP (NO HELMET)</button>
+      <button class="demo-btn" data-scenario="scenario_3_fire">3. FIRE HAZARD EMERGENCY</button>
+      <button class="demo-btn" data-scenario="scenario_4_item_collision">4. ITEM/RACK COLLISION</button>
+      <button class="demo-btn" data-scenario="scenario_5_person_nearmiss">5. PEDESTRIAN NEAR-MISS</button>
+      <button class="demo-btn" data-scenario="scenario_6_multiangle">6. MULTI-ANGLE COLLISION</button>
       <button class="demo-btn cloud-toggle" id="cloudToggleBtn">DISCONNECT CLOUD</button>
     </div>
   </div>
@@ -71,21 +71,36 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
           </svg>
-          EDGE CAMERA FEED — ZONE 01
+          SWARM DUAL-CAMERA SYNCHRONIZED FEEDS
         </h3>
         <span style="color:var(--text-dim);" id="metricFps">24 FPS</span>
       </div>
 
       <div class="panel-body">
-        <div class="video-container" id="videoContainer">
-          <img src="/api/stream/video" alt="Edge CCTV Stream" class="video-element" id="videoStream">
-          
-          <div class="video-hud-overlay">
-            <div class="hud-tag">
-              CALIBRATED GROUND PLANE (3.5m)
+        <div class="dual-video-grid">
+          <!-- Feed 1: Primary Swarm Camera -->
+          <div class="video-container" id="videoContainerA">
+            <img src="/api/stream/video/cam_a" alt="Camera 01 Stream" class="video-element" id="videoStreamA">
+            <div class="video-hud-overlay">
+              <div class="hud-tag" id="hudTagCamA">
+                SWARM CAM 01 (PRIMARY)
+              </div>
+              <div class="local-alert-badge" id="localAlertBadgeA">
+                🚨 LOCAL ALERT (&lt;10ms)
+              </div>
             </div>
-            <div class="local-alert-badge" id="localAlertBadge">
-              🚨 LOCAL ALERT ACTIVE (&lt;10ms)
+          </div>
+
+          <!-- Feed 2: Synchronized Peer Swarm Camera -->
+          <div class="video-container" id="videoContainerB">
+            <img src="/api/stream/video/cam_b" alt="Camera 02 Stream" class="video-element" id="videoStreamB">
+            <div class="video-hud-overlay">
+              <div class="hud-tag" id="hudTagCamB">
+                SWARM CAM 02 (SYNCHRONIZED PEER)
+              </div>
+              <div class="local-alert-badge" id="localAlertBadgeB">
+                🚨 LOCAL ALERT (&lt;10ms)
+              </div>
             </div>
           </div>
         </div>

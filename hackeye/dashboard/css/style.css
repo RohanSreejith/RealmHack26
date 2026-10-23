@@ -213,6 +213,18 @@ body {
   gap: 12px;
 }
 
+.dual-video-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 1400px) {
+  .dual-video-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Video Feed Container */
 .video-container {
   position: relative;

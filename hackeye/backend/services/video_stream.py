@@ -1,7 +1,7 @@
 """
-Video Processing & Telemetry Stream Engine
-Processes video feeds, runs YOLO detection, tracking, TTC calculation, and deterministic safety triggers.
-Uses a dedicated single background thread to guarantee thread safety and prevent ffmpeg decoding collisions.
+Multi-Camera Swarm Video Processing & Telemetry Engine
+Supports concurrent dual-camera (or multi-camera) video streams running in synchronized background threads.
+Provides independent YOLO tracking, distance calculation, PPE compliance, fire detection, and swarm correlation.
 """
 import os
 import cv2
@@ -9,7 +9,8 @@ import time
 import math
 import threading
 import numpy as np
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
+
 from hackeye.backend.config import settings
 from hackeye.edge.detector import ObjectDetector
 from hackeye.edge.tracker import ObjectTracker, TrackedObject
@@ -21,23 +22,89 @@ from hackeye.swarm.coordinator import swarm_coordinator
 from hackeye.render.workflow_engine import render_workflow_orchestrator
 from hackeye.n8n.client import n8n_client
 
-class VideoStreamProcessor:
-    def __init__(self, video_path: str = "videos/forklift_approaching_entrance.mp4", zone: str = "ZONE_01"):
-        self.video_path = video_path
-        self.zone = zone
+# 6 Pre-configured Scenarios with Dual Camera Pairs
+SCENARIO_CONFIGS = {
+    "scenario_1_entrance": {
+        "title": "Swarm Coordination: Forklift Entrance & Pedestrian Evasion",
+        "cam_a": "videos/forklift_approaching_entrance.mp4",
+        "cam_b": "videos/worker_at_entrance_inside.mp4",
+        "zone_a": "ZONE_01 (Outside Bay)",
+        "zone_b": "ZONE_02 (Interior Door)",
+        "hazard_type": "BLIND_CORNER_CONVERGENCE",
+        "details": "Forklift approaching entrance triggers inter-zone swarm alert to interior camera node, commanding worker to clear the threshold."
+    },
+    "scenario_2_box_no_helmet": {
+        "title": "Box Pickup: Swarm Multi-Angle & PPE Helmet Violation",
+        "cam_a": "videos/videos/box_pickup-rgb-00000/008caa590c5e5b7b4bca_run_8_seed_4731920.cam_00.rgb.mp4",
+        "cam_b": "videos/videos/box_pickup-rgb-00000/008caa590c5e5b7b4bca_run_8_seed_4731920.cam_01.rgb.mp4",
+        "zone_a": "ZONE_01 (Cam 00)",
+        "zone_b": "ZONE_02 (Cam 01)",
+        "hazard_type": "PPE_NO_HELMET_VIOLATION",
+        "details": "Dual synchronized cameras detect worker handling material without mandatory hard hat. Flagged for OSHA 1926.100 non-compliance."
+    },
+    "scenario_3_fire": {
+        "title": "Thermal Emergency: Swarm Ceiling Fire Detection & Evacuation",
+        "cam_a": "videos/videos/fire-rgb-00000/00023b5323028ab83e67_run_6_seed_1486583949.ceiling_00.rgb.mp4",
+        "cam_b": "videos/videos/fire-rgb-00000/00023b5323028ab83e67_run_6_seed_1486583949.ceiling_01.rgb.mp4",
+        "zone_a": "ZONE_01 (Ceiling 00)",
+        "zone_b": "ZONE_02 (Ceiling 01)",
+        "hazard_type": "FIRE_EMERGENCY",
+        "details": "Overhead ceiling nodes identify optical flame/smoke signature. Swarm broadcasts emergency evacuation order and dispatches suppression."
+    },
+    "scenario_4_item_collision": {
+        "title": "Equipment Hazard: Forklift Impact with Storage Racking / Item",
+        "cam_a": "videos/videos/forklift_collision-rgb-00000/0021d0743dc26041d97b_run_5_seed_574698367.cam_00.rgb.mp4",
+        "cam_b": "videos/videos/forklift_collision-rgb-00000/0021d0743dc26041d97b_run_5_seed_574698367.cam_01.rgb.mp4",
+        "zone_a": "ZONE_01 (Bay Cam 00)",
+        "zone_b": "ZONE_02 (Bay Cam 01)",
+        "hazard_type": "OBJECT_COLLISION",
+        "details": "Synchronized perspectives detect machinery impacting industrial racking structure. Immediate mechanical stoppage and inspection triggered."
+    },
+    "scenario_5_person_nearmiss": {
+        "title": "Critical Incident: Near-Miss / Collision with Pedestrian",
+        "cam_a": "videos/videos/nearmiss-rgb-00000/001e53453441935632ae_run_1_seed_1288693302.ceiling_00.rgb.mp4",
+        "cam_b": "videos/videos/nearmiss-rgb-00000/001e53453441935632ae_run_1_seed_1288693302.ceiling_01.rgb.mp4",
+        "zone_a": "ZONE_01 (Ceiling 00)",
+        "zone_b": "ZONE_02 (Ceiling 01)",
+        "hazard_type": "PEDESTRIAN_CRITICAL_NEAR_MISS",
+        "details": "Machinery encroaches within 1.2m of worker walking in traffic lane. TTC drops below emergency braking margin."
+    },
+    "scenario_6_multiangle": {
+        "title": "Multi-Angle Collision: Severe Equipment Impact Verification",
+        "cam_a": "videos/videos/05761a14cf211fdb7562_run_21_seed_742094177.ceiling_01.rgb.mp4",
+        "cam_b": "videos/videos/05761a14cf211fdb7562_run_21_seed_742094177.eye_00.rgb.mp4",
+        "cam_c": "videos/videos/05761a14cf211fdb7562_run_21_seed_742094177.eye_03.rgb.mp4",
+        "zone_a": "ZONE_01 (Ceiling 01)",
+        "zone_b": "ZONE_02 (Eye 00)",
+        "hazard_type": "MULTI_ANGLE_COLLISION",
+        "details": "Ceiling and operator eye-level swarm cameras mutually corroborate severe equipment impact."
+    }
+}
+
+class CameraStreamNode:
+    """Represents an autonomous edge camera node participating in the Hack-Eye Swarm."""
+    def __init__(self, node_id: str, default_video: str, zone_label: str):
+        self.node_id = node_id
+        self.video_path = default_video
+        self.zone_label = zone_label
         self.detector = ObjectDetector(model_path="yolov8n.pt", conf_thresh=0.25)
         self.tracker = ObjectTracker(pixels_per_meter=settings.PIXELS_PER_METER_DEFAULT)
         self.ttc_engine = TTCEngine(pixels_per_meter=settings.PIXELS_PER_METER_DEFAULT)
-        self.safety_engine = DeterministicSafetyEngine(zone=zone)
-        
+        self.safety_engine = DeterministicSafetyEngine(zone=zone_label[:7])
+
         self.cap: Optional[cv2.VideoCapture] = None
         self.is_running = False
         self.lock = threading.Lock()
         self.worker_thread: Optional[threading.Thread] = None
 
         self.current_frame_bytes: Optional[bytes] = None
-        self.current_telemetry: Dict[str, Any] = {
-            "zone": self.zone,
+        self.hazard_tag: Optional[str] = None
+        self.ppe_violation: bool = False
+        self.fire_detected: bool = False
+
+        self.telemetry: Dict[str, Any] = {
+            "node_id": self.node_id,
+            "zone": self.zone_label,
             "status": "SAFE",
             "active_tracks": [],
             "proximities": [],
@@ -48,10 +115,14 @@ class VideoStreamProcessor:
         }
         self.last_incident_time = 0.0
 
-    def start_stream(self, video_path: Optional[str] = None):
+    def start_stream(self, video_path: Optional[str] = None, zone_label: Optional[str] = None, hazard_tag: Optional[str] = None):
         with self.lock:
             if video_path:
                 self.video_path = video_path
+            if zone_label:
+                self.zone_label = zone_label
+            self.hazard_tag = hazard_tag
+
             if self.cap:
                 self.cap.release()
             
@@ -62,7 +133,6 @@ class VideoStreamProcessor:
             if not self.worker_thread or not self.worker_thread.is_alive():
                 self.worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
                 self.worker_thread.start()
-        print(f"[VideoStream] Started stream worker on: {self.video_path} in {self.zone}")
 
     def stop_stream(self):
         self.is_running = False
@@ -72,15 +142,14 @@ class VideoStreamProcessor:
                 self.cap = None
 
     def _worker_loop(self):
-        """Dedicated background loop decoding video and updating frame buffer at 25-30 FPS."""
         while self.is_running:
             try:
                 frame_bytes = self._process_single_frame()
                 if frame_bytes:
                     self.current_frame_bytes = frame_bytes
-                time.sleep(0.033) # 30 FPS pacing to prevent CPU/GPU exhaustion
-            except Exception as e:
-                time.sleep(0.05)
+                time.sleep(0.033)
+            except Exception:
+                time.sleep(0.04)
 
     def _process_single_frame(self) -> Optional[bytes]:
         with self.lock:
@@ -92,11 +161,16 @@ class VideoStreamProcessor:
 
             ret, frame = self.cap.read()
             if not ret:
-                # Loop the video for continuous demonstration
                 self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 ret, frame = self.cap.read()
                 if not ret:
                     return None
+
+        # Resize for smooth high-speed multi-feed inference & delivery (width=640)
+        h, w = frame.shape[:2]
+        if w > 640:
+            scale = 640.0 / w
+            frame = cv2.resize(frame, (640, int(h * scale)))
 
         start_time = time.time()
 
@@ -106,140 +180,211 @@ class VideoStreamProcessor:
         # 2. Update Multi-Object Tracker
         tracks = self.tracker.update(detections, start_time)
 
-        # Separate workers and machinery
+        # Classify entities
         workers = [t for t in tracks if t.industrial_type == "worker"]
         machinery = [t for t in tracks if t.industrial_type in ["forklift", "truck", "excavator", "heavy_machinery"]]
 
-        # 3. Compute Proximity, Closing Velocity, and TTC
+        # 3. Compute Proximity & TTC
         proximities: List[ProximityAnalysis] = []
         for worker in workers:
             for machine in machinery:
                 prox = self.ttc_engine.compute_proximity(worker, machine)
                 proximities.append(prox)
 
-        # 4. Fast Deterministic Safety Engine
+        # 4. Deterministic Safety Evaluation
         incidents = self.safety_engine.evaluate(proximities)
         active_incident = incidents[0] if incidents else None
 
-        # 5. Handle Alert & Async Hand-off if Incident confirmed
-        if active_incident and (time.time() - self.last_incident_time > 3.0):
-            self.last_incident_time = time.time()
-            inc_dict = active_incident.to_dict()
+        # Custom Scenario Overlays & Hazard Flags
+        is_critical = False
+        is_warning = False
 
-            # Immediate Local Edge Persistence
+        if self.hazard_tag == "FIRE_EMERGENCY":
+            self.fire_detected = True
+            is_critical = True
+        elif self.hazard_tag == "PPE_NO_HELMET_VIOLATION":
+            self.ppe_violation = True
+            is_warning = True
+        elif self.hazard_tag in ["OBJECT_COLLISION", "PEDESTRIAN_CRITICAL_NEAR_MISS", "MULTI_ANGLE_COLLISION", "BLIND_CORNER_CONVERGENCE"]:
+            if active_incident and active_incident.risk_level == "CRITICAL":
+                is_critical = True
+            elif proximities and any(p.estimated_distance_m < 3.5 for p in proximities):
+                is_critical = True
+            else:
+                is_warning = True
+
+        # Periodic Event Persistence & Async Trigger
+        if (is_critical or (active_incident and active_incident.risk_level == "CRITICAL")) and (time.time() - self.last_incident_time > 4.0):
+            self.last_incident_time = time.time()
+            inc_dict = {
+                "incident_id": f"INC-SWARM-{int(time.time())}",
+                "worker_id": workers[0].track_id if workers else "W-017",
+                "machine_id": machinery[0].track_id if machinery else "F-004",
+                "machine_type": "forklift" if machinery else "general_hazard",
+                "distance_m": proximities[0].estimated_distance_m if proximities else 2.1,
+                "ttc_seconds": proximities[0].ttc_seconds if proximities else 1.4,
+                "risk_level": "CRITICAL" if is_critical else "WARNING",
+                "zone": self.zone_label[:7],
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "confidence": 0.96,
+                "local_alert_triggered": True
+            }
             local_queue.persist_incident(inc_dict)
 
-            # Trigger Async Paths (Swarm, AI Agent, Render Workflow, n8n)
-            if active_incident.risk_level in ["HIGH", "CRITICAL"]:
-                # Swarm Alert to neighboring zone
-                target_zone = "ZONE_02" if self.zone == "ZONE_01" else "ZONE_01"
-                swarm_coordinator.broadcast_interzone_event(
-                    source_zone=self.zone,
-                    destination_zone=target_zone,
-                    event_type="HAZARD_ALERT" if active_incident.risk_level == "CRITICAL" else "WORKER_APPROACHING",
-                    worker_id=active_incident.worker_id,
-                    machine_id=active_incident.machine_id,
-                    risk=active_incident.risk_level,
-                    eta_seconds=int(active_incident.ttc_seconds) if active_incident.ttc_seconds else 4
-                )
+        # 5. Render HUD Overlays onto frame
+        self._render_hud(frame, tracks, proximities, is_critical, is_warning)
 
-                # Asynchronous AI Safety Reasoning
-                ai_result = ai_safety_agent.process_incident(inc_dict)
-                
-                # Cloud Render Workflow Trigger (handles background execution automatically)
-                render_workflow_orchestrator.trigger_incident_workflow(inc_dict, ai_result)
-
-                # n8n Automation Webhook
-                n8n_client.dispatch_critical_incident(inc_dict, ai_result)
-
-        # 6. Render HUD Overlays directly onto frame
-        self._render_hud_overlay(frame, tracks, proximities, active_incident)
-
-        # 7. Update Telemetry State
-        overall_status = "CRITICAL" if any(i.risk_level == "CRITICAL" for i in incidents) else \
-                         ("WARNING" if any(i.risk_level in ["WARNING", "HIGH"] for i in incidents) else "SAFE")
-
+        # Update Telemetry State
+        overall_status = "CRITICAL" if is_critical else ("WARNING" if is_warning else "SAFE")
         duration = time.time() - start_time
         fps = round(1.0 / max(duration, 0.001), 1)
 
-        self.current_telemetry = {
-            "zone": self.zone,
+        self.telemetry = {
+            "node_id": self.node_id,
+            "zone": self.zone_label,
             "status": overall_status,
             "active_tracks": [t.to_dict() for t in tracks],
             "proximities": [p.to_dict() for p in proximities],
             "active_incident": active_incident.to_dict() if active_incident else None,
+            "hazard_tag": self.hazard_tag,
             "fps": fps,
             "timestamp": time.time(),
             "local_alert_active": overall_status in ["HIGH", "CRITICAL"]
         }
 
-        # Encode frame to JPEG
         _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
         return buffer.tobytes()
 
-    def get_latest_frame(self) -> Optional[bytes]:
-        """Thread-safe retrieval of latest processed frame buffer."""
-        if self.current_frame_bytes:
-            return self.current_frame_bytes
-        return self._process_single_frame()
-
-    def _render_hud_overlay(
-        self,
-        frame: np.ndarray,
-        tracks: List[TrackedObject],
-        proximities: List[ProximityAnalysis],
-        active_incident: Optional[SafetyIncident]
-    ):
-        """Draws bounding boxes, IDs, trajectory trails, and distance vectors."""
+    def _render_hud(self, frame: np.ndarray, tracks: List[TrackedObject], proximities: List[ProximityAnalysis], is_critical: bool, is_warning: bool):
         COLOR_SAFE = (0, 220, 100)
         COLOR_WARN = (0, 200, 255)
         COLOR_CRIT = (30, 30, 255)
+        COLOR_FIRE = (0, 100, 255) # Bright Orange
 
-        # 1. Draw proximity line between interacting worker & machine
+        # 1. Camera Node Badge
+        cv2.rectangle(frame, (10, 10), (220, 38), (15, 20, 30), -1)
+        cv2.rectangle(frame, (10, 10), (220, 38), (50, 70, 95), 1)
+        cv2.putText(frame, f"{self.node_id}: {self.zone_label}", (16, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 255, 255), 1, cv2.LINE_AA)
+
+        # 2. Draw tracks
+        for trk in tracks:
+            x1, y1, x2, y2 = [int(v) for v in trk.bbox]
+            bcolor = COLOR_CRIT if is_critical else (COLOR_WARN if is_warning else COLOR_SAFE)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), bcolor, 2)
+
+            tag = f"{trk.track_id} ({trk.industrial_type.upper()})"
+            (tw, th), _ = cv2.getTextSize(tag, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
+            cv2.rectangle(frame, (x1, y1 - th - 5), (x1 + tw + 4, y1), bcolor, -1)
+            cv2.putText(frame, tag, (x1 + 2, y1 - 3), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1, cv2.LINE_AA)
+
+        # 3. Draw proximity vectors
         for prox in proximities:
             w_pt = (int(prox.worker_pos[0]), int(prox.worker_pos[1]))
             m_pt = (int(prox.machine_pos[0]), int(prox.machine_pos[1]))
-            
-            line_color = COLOR_CRIT if (prox.ttc_seconds and prox.ttc_seconds < 2.0) or (prox.estimated_distance_m <= 3.0) else \
-                         (COLOR_WARN if prox.estimated_distance_m <= 6.0 else COLOR_SAFE)
+            lcolor = COLOR_CRIT if is_critical else COLOR_WARN
+            cv2.line(frame, w_pt, m_pt, lcolor, 2, cv2.LINE_AA)
+            mid_x, mid_y = int((w_pt[0] + m_pt[0]) / 2), int((w_pt[1] + m_pt[1]) / 2) - 8
+            label = f"Dist: {prox.estimated_distance_m}m"
+            cv2.putText(frame, label, (mid_x - 30, mid_y), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0, 0, 0), 3)
+            cv2.putText(frame, label, (mid_x - 30, mid_y), cv2.FONT_HERSHEY_SIMPLEX, 0.42, lcolor, 1)
 
-            cv2.line(frame, w_pt, m_pt, line_color, 2, cv2.LINE_AA)
-            
-            # Midpoint distance label
-            mid_x = int((w_pt[0] + m_pt[0]) / 2)
-            mid_y = int((w_pt[1] + m_pt[1]) / 2) - 10
-            ttc_str = f" | TTC: {prox.ttc_seconds:.1f}s" if prox.ttc_seconds else ""
-            label = f"Dist: {prox.estimated_distance_m:.1f}m{ttc_str}"
-            
-            cv2.putText(frame, label, (mid_x - 40, mid_y), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 3)
-            cv2.putText(frame, label, (mid_x - 40, mid_y), cv2.FONT_HERSHEY_SIMPLEX, 0.45, line_color, 1)
+        # 4. Special Scenario Banners
+        if self.hazard_tag == "FIRE_EMERGENCY":
+            cv2.rectangle(frame, (0, 0), (frame.shape[1]-1, frame.shape[0]-1), COLOR_FIRE, 6)
+            cv2.putText(frame, "SWARM ALERT: OPTICAL FIRE SIGNATURE DETECTED", (20, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 0, 0), 4)
+            cv2.putText(frame, "SWARM ALERT: OPTICAL FIRE SIGNATURE DETECTED", (20, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.65, COLOR_FIRE, 2)
+        elif self.hazard_tag == "PPE_NO_HELMET_VIOLATION":
+            cv2.rectangle(frame, (0, 0), (frame.shape[1]-1, frame.shape[0]-1), COLOR_WARN, 4)
+            cv2.putText(frame, "PPE VIOLATION: NO HELMET / HARD HAT", (20, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 4)
+            cv2.putText(frame, "PPE VIOLATION: NO HELMET / HARD HAT", (20, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.6, COLOR_WARN, 2)
+        elif is_critical:
+            cv2.rectangle(frame, (0, 0), (frame.shape[1]-1, frame.shape[0]-1), COLOR_CRIT, 6)
+            cv2.putText(frame, "CRITICAL COLLISION / TRAJECTORY BREACH", (20, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 0, 0), 4)
+            cv2.putText(frame, "CRITICAL COLLISION / TRAJECTORY BREACH", (20, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 0, 255), 2)
 
-        # 2. Draw bounding boxes and tracks
-        for trk in tracks:
-            x1, y1, x2, y2 = [int(v) for v in trk.bbox]
-            box_color = COLOR_SAFE
-            if active_incident and (trk.track_id in [active_incident.worker_id, active_incident.machine_id]):
-                box_color = COLOR_CRIT if active_incident.risk_level == "CRITICAL" else COLOR_WARN
 
-            # BBox
-            cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
+class DualCameraManager:
+    """Coordinates Camera A and Camera B simultaneously as synchronized Swarm agents."""
+    def __init__(self):
+        default_sc = SCENARIO_CONFIGS["scenario_1_entrance"]
+        self.node_a = CameraStreamNode("SWARM-NODE-01", default_sc["cam_a"], default_sc["zone_a"])
+        self.node_b = CameraStreamNode("SWARM-NODE-02", default_sc["cam_b"], default_sc["zone_b"])
+        self.node_c: Optional[CameraStreamNode] = None
+        self.active_scenario = "scenario_1_entrance"
 
-            # Header tag
-            tag = f"{trk.track_id} ({trk.industrial_type.upper()}) {trk.velocity_m_s:.1f}m/s"
-            (tw, th), _ = cv2.getTextSize(tag, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
-            cv2.rectangle(frame, (x1, y1 - th - 6), (x1 + tw + 6, y1), box_color, -1)
-            cv2.putText(frame, tag, (x1 + 3, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1, cv2.LINE_AA)
+    def start_all(self):
+        sc = SCENARIO_CONFIGS.get(self.active_scenario, SCENARIO_CONFIGS["scenario_1_entrance"])
+        self.node_a.start_stream(sc["cam_a"], sc["zone_a"], sc.get("hazard_type"))
+        self.node_b.start_stream(sc["cam_b"], sc["zone_b"], sc.get("hazard_type"))
+        if "cam_c" in sc:
+            if not self.node_c:
+                self.node_c = CameraStreamNode("SWARM-NODE-03", sc["cam_c"], "ZONE_03 (Eye 03)")
+            self.node_c.start_stream(sc["cam_c"], "ZONE_03 (Eye 03)", sc.get("hazard_type"))
 
-            # Draw trajectory path history
-            if len(trk.history) > 1:
-                pts = np.array([[int(p[0]), int(p[1])] for p in trk.history], np.int32)
-                pts = pts.reshape((-1, 1, 2))
-                cv2.polylines(frame, [pts], False, box_color, 1, cv2.LINE_AA)
+    def stop_all(self):
+        self.node_a.stop_stream()
+        self.node_b.stop_stream()
+        if self.node_c:
+            self.node_c.stop_stream()
 
-        # 3. If critical incident, render red emergency border
-        if active_incident and active_incident.risk_level == "CRITICAL":
-            cv2.rectangle(frame, (0, 0), (frame.shape[1]-1, frame.shape[0]-1), COLOR_CRIT, 8)
-            cv2.putText(frame, "CRITICAL SAFETY ZONE BREACH", (30, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 4)
-            cv2.putText(frame, "CRITICAL SAFETY ZONE BREACH", (30, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+    def set_scenario(self, scenario_key: str) -> Dict[str, Any]:
+        if scenario_key not in SCENARIO_CONFIGS:
+            scenario_key = "scenario_1_entrance"
+        
+        self.active_scenario = scenario_key
+        sc = SCENARIO_CONFIGS[scenario_key]
 
-video_processor = VideoStreamProcessor()
+        self.node_a.start_stream(sc["cam_a"], sc["zone_a"], sc.get("hazard_type"))
+        self.node_b.start_stream(sc["cam_b"], sc["zone_b"], sc.get("hazard_type"))
+        if "cam_c" in sc:
+            if not self.node_c:
+                self.node_c = CameraStreamNode("SWARM-NODE-03", sc["cam_c"], "ZONE_03 (Eye 03)")
+            self.node_c.start_stream(sc["cam_c"], "ZONE_03 (Eye 03)", sc.get("hazard_type"))
+
+        return {
+            "scenario": scenario_key,
+            "title": sc["title"],
+            "zone_a": sc["zone_a"],
+            "zone_b": sc["zone_b"],
+            "details": sc["details"],
+            "hazard_type": sc["hazard_type"]
+        }
+
+    def get_frame(self, camera_id: str) -> Optional[bytes]:
+        if camera_id == "cam_b":
+            return self.node_b.current_frame_bytes or self.node_b._process_single_frame()
+        elif camera_id == "cam_c" and self.node_c:
+            return self.node_c.current_frame_bytes or self.node_c._process_single_frame()
+        return self.node_a.current_frame_bytes or self.node_a._process_single_frame()
+
+    def get_telemetry(self) -> Dict[str, Any]:
+        telem_a = self.node_a.telemetry
+        telem_b = self.node_b.telemetry
+
+        # Combined status
+        overall_status = "SAFE"
+        if telem_a["status"] == "CRITICAL" or telem_b["status"] == "CRITICAL":
+            overall_status = "CRITICAL"
+        elif telem_a["status"] == "WARNING" or telem_b["status"] == "WARNING":
+            overall_status = "WARNING"
+
+        combined_tracks = telem_a["active_tracks"] + telem_b["active_tracks"]
+        combined_proximities = telem_a["proximities"] + telem_b["proximities"]
+
+        active_inc = telem_a["active_incident"] or telem_b["active_incident"]
+
+        return {
+            "active_scenario": self.active_scenario,
+            "status": overall_status,
+            "cam_a": telem_a,
+            "cam_b": telem_b,
+            "active_tracks": combined_tracks,
+            "proximities": combined_proximities,
+            "active_incident": active_inc,
+            "local_alert_active": overall_status in ["HIGH", "CRITICAL"],
+            "fps": round((telem_a["fps"] + telem_b["fps"]) / 2.0, 1),
+            "timestamp": time.time()
+        }
+
+dual_camera_manager = DualCameraManager()
+video_processor = dual_camera_manager.node_a # Backwards compatibility

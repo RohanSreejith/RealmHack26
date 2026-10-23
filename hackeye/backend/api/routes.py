@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
+import asyncio
 
 from hackeye.backend.database.db import get_db
 from hackeye.backend.database.models import Incident, Worker, Machine, SwarmEvent, SafetyInsight, SyncQueue
@@ -159,50 +160,65 @@ def get_workflow(wf_id: str):
 def get_recent_n8n():
     return n8n_client.get_recent_executions()
 
+from hackeye.backend.services.video_stream import dual_camera_manager, video_processor
+
 # Demo Controller Endpoints
 @router.post("/demo/scenario/{scenario_name}")
 def trigger_demo_scenario(scenario_name: str):
-    res = demo_controller.run_scenario(scenario_name, video_processor_instance=video_processor)
-    return res
+    sc_info = dual_camera_manager.set_scenario(scenario_name)
+    res = demo_controller.run_scenario(scenario_name)
+    return {**res, **sc_info}
 
 @router.post("/demo/cloud-toggle")
 def toggle_cloud_connection(payload: Dict[str, bool]):
     connected = payload.get("connected", True)
     return demo_controller.set_cloud_state(connected)
 
-# Real-Time Telemetry & Video MJPEG Stream
+# Real-Time Telemetry & Multi-Camera Video MJPEG Streams
 @router.get("/stream/telemetry")
 def get_stream_telemetry():
     return {
-        **video_processor.current_telemetry,
+        **dual_camera_manager.get_telemetry(),
         "cloud_connected": demo_controller.cloud_connected,
         "pending_sync_count": local_queue.get_pending_sync_count()
     }
 
-async def mjpeg_generator():
+async def mjpeg_generator(camera_id: str = "cam_a"):
     while True:
         try:
-            frame_bytes = video_processor.get_latest_frame()
+            frame_bytes = dual_camera_manager.get_frame(camera_id)
             if frame_bytes:
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
             await asyncio.sleep(0.04)  # ~25 FPS delivery to browser
-        except Exception as e:
+        except Exception:
             await asyncio.sleep(0.05)
+
+@router.get("/stream/video/cam_a")
+async def get_video_stream_cam_a():
+    return StreamingResponse(
+        mjpeg_generator("cam_a"),
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
+
+@router.get("/stream/video/cam_b")
+async def get_video_stream_cam_b():
+    return StreamingResponse(
+        mjpeg_generator("cam_b"),
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
 
 @router.get("/stream/video")
 async def get_video_stream():
-    if not video_processor.is_running:
-        video_processor.start_stream("videos/forklift_approaching_entrance.mp4")
     return StreamingResponse(
-        mjpeg_generator(),
+        mjpeg_generator("cam_a"),
         media_type="multipart/x-mixed-replace; boundary=frame"
     )
 
 @router.get("/stream/frame")
-def get_single_frame():
+def get_single_frame(cam: str = "cam_a"):
     """Returns single latest JPEG frame snapshot without persistent stream connection."""
-    frame_bytes = video_processor.current_frame_bytes or video_processor.process_next_frame()
+    frame_bytes = dual_camera_manager.get_frame(cam)
     if frame_bytes:
         return Response(content=frame_bytes, media_type="image/jpeg")
     return Response(status_code=204)
