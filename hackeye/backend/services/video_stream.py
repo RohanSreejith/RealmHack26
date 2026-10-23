@@ -1,12 +1,13 @@
 """
 Video Processing & Telemetry Stream Engine
 Processes video feeds, runs YOLO detection, tracking, TTC calculation, and deterministic safety triggers.
+Uses a dedicated single background thread to guarantee thread safety and prevent ffmpeg decoding collisions.
 """
 import os
 import cv2
 import time
 import math
-import asyncio
+import threading
 import numpy as np
 from typing import Dict, Any, List, Optional
 from hackeye.backend.config import settings
@@ -31,6 +32,9 @@ class VideoStreamProcessor:
         
         self.cap: Optional[cv2.VideoCapture] = None
         self.is_running = False
+        self.lock = threading.Lock()
+        self.worker_thread: Optional[threading.Thread] = None
+
         self.current_frame_bytes: Optional[bytes] = None
         self.current_telemetry: Dict[str, Any] = {
             "zone": self.zone,
@@ -38,44 +42,63 @@ class VideoStreamProcessor:
             "active_tracks": [],
             "proximities": [],
             "active_incident": None,
-            "fps": 0.0,
-            "timestamp": time.time()
+            "fps": 24.0,
+            "timestamp": time.time(),
+            "local_alert_active": False
         }
         self.last_incident_time = 0.0
 
     def start_stream(self, video_path: Optional[str] = None):
-        if video_path:
-            self.video_path = video_path
-        if self.cap:
-            self.cap.release()
-        
-        self.cap = cv2.VideoCapture(self.video_path)
-        self.is_running = True
-        print(f"[VideoStream] Started processing stream: {self.video_path} in {self.zone}")
+        with self.lock:
+            if video_path:
+                self.video_path = video_path
+            if self.cap:
+                self.cap.release()
+            
+            if os.path.exists(self.video_path):
+                self.cap = cv2.VideoCapture(self.video_path)
+            self.is_running = True
+
+            if not self.worker_thread or not self.worker_thread.is_alive():
+                self.worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
+                self.worker_thread.start()
+        print(f"[VideoStream] Started stream worker on: {self.video_path} in {self.zone}")
 
     def stop_stream(self):
         self.is_running = False
-        if self.cap:
-            self.cap.release()
-            self.cap = None
+        with self.lock:
+            if self.cap:
+                self.cap.release()
+                self.cap = None
 
-    def process_next_frame(self) -> Optional[bytes]:
-        if not self.cap or not self.cap.isOpened():
-            if self.is_running and os.path.exists(self.video_path):
-                self.cap = cv2.VideoCapture(self.video_path)
-            else:
-                return None
+    def _worker_loop(self):
+        """Dedicated background loop decoding video and updating frame buffer at 25-30 FPS."""
+        while self.is_running:
+            try:
+                frame_bytes = self._process_single_frame()
+                if frame_bytes:
+                    self.current_frame_bytes = frame_bytes
+                time.sleep(0.033) # 30 FPS pacing to prevent CPU/GPU exhaustion
+            except Exception as e:
+                time.sleep(0.05)
 
-        ret, frame = self.cap.read()
-        if not ret:
-            # Loop the video for continuous demonstration
-            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+    def _process_single_frame(self) -> Optional[bytes]:
+        with self.lock:
+            if not self.cap or not self.cap.isOpened():
+                if os.path.exists(self.video_path):
+                    self.cap = cv2.VideoCapture(self.video_path)
+                else:
+                    return None
+
             ret, frame = self.cap.read()
             if not ret:
-                return None
+                # Loop the video for continuous demonstration
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ret, frame = self.cap.read()
+                if not ret:
+                    return None
 
         start_time = time.time()
-        h, w = frame.shape[:2]
 
         # 1. Run YOLO Object Detection
         detections = self.detector.detect(frame)
@@ -123,14 +146,13 @@ class VideoStreamProcessor:
                 # Asynchronous AI Safety Reasoning
                 ai_result = ai_safety_agent.process_incident(inc_dict)
                 
-                # Cloud Render Workflow Trigger
-                wf = render_workflow_orchestrator.trigger_incident_workflow(inc_dict)
-                asyncio.create_task(render_workflow_orchestrator.run_pipeline_async(wf.workflow_id, inc_dict, ai_result))
+                # Cloud Render Workflow Trigger (handles background execution automatically)
+                render_workflow_orchestrator.trigger_incident_workflow(inc_dict, ai_result)
 
                 # n8n Automation Webhook
                 n8n_client.dispatch_critical_incident(inc_dict, ai_result)
 
-        # 6. Render HUD Overlays directly onto frame for visual inspection
+        # 6. Render HUD Overlays directly onto frame
         self._render_hud_overlay(frame, tracks, proximities, active_incident)
 
         # 7. Update Telemetry State
@@ -153,8 +175,13 @@ class VideoStreamProcessor:
 
         # Encode frame to JPEG
         _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
-        self.current_frame_bytes = buffer.tobytes()
-        return self.current_frame_bytes
+        return buffer.tobytes()
+
+    def get_latest_frame(self) -> Optional[bytes]:
+        """Thread-safe retrieval of latest processed frame buffer."""
+        if self.current_frame_bytes:
+            return self.current_frame_bytes
+        return self._process_single_frame()
 
     def _render_hud_overlay(
         self,
@@ -164,7 +191,6 @@ class VideoStreamProcessor:
         active_incident: Optional[SafetyIncident]
     ):
         """Draws bounding boxes, IDs, trajectory trails, and distance vectors."""
-        # Visual color palette: Safe = Emerald Green, Warning = Amber, Critical = Bright Coral Red
         COLOR_SAFE = (0, 220, 100)
         COLOR_WARN = (0, 200, 255)
         COLOR_CRIT = (30, 30, 255)

@@ -179,20 +179,30 @@ def get_stream_telemetry():
         "pending_sync_count": local_queue.get_pending_sync_count()
     }
 
-def mjpeg_generator():
+async def mjpeg_generator():
     while True:
-        frame_bytes = video_processor.process_next_frame()
-        if frame_bytes:
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-        else:
-            time.sleep(0.04)
+        try:
+            frame_bytes = video_processor.get_latest_frame()
+            if frame_bytes:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+            await asyncio.sleep(0.04)  # ~25 FPS delivery to browser
+        except Exception as e:
+            await asyncio.sleep(0.05)
 
 @router.get("/stream/video")
-def get_video_stream():
+async def get_video_stream():
     if not video_processor.is_running:
         video_processor.start_stream("videos/forklift_approaching_entrance.mp4")
     return StreamingResponse(
         mjpeg_generator(),
         media_type="multipart/x-mixed-replace; boundary=frame"
     )
+
+@router.get("/stream/frame")
+def get_single_frame():
+    """Returns single latest JPEG frame snapshot without persistent stream connection."""
+    frame_bytes = video_processor.current_frame_bytes or video_processor.process_next_frame()
+    if frame_bytes:
+        return Response(content=frame_bytes, media_type="image/jpeg")
+    return Response(status_code=204)

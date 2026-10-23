@@ -56,7 +56,7 @@ if os.path.exists(dashboard_dir):
     app.mount("/static", StaticFiles(directory=dashboard_dir), name="static")
 
 @app.get("/")
-def serve_dashboard():
+async def serve_dashboard():
     index_path = os.path.join(dashboard_dir, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
