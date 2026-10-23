@@ -87,7 +87,7 @@ class CameraStreamNode:
         self.node_id = node_id
         self.video_path = default_video
         self.zone_label = zone_label
-        self.detector = ObjectDetector(model_path="yolov8n.pt", conf_thresh=0.25)
+        self.detector = ObjectDetector(model_path="yolov8n.pt", conf_thresh=0.15)
         self.tracker = ObjectTracker(pixels_per_meter=settings.PIXELS_PER_METER_DEFAULT)
         self.ttc_engine = TTCEngine(pixels_per_meter=settings.PIXELS_PER_METER_DEFAULT)
         self.safety_engine = DeterministicSafetyEngine(zone=zone_label[:7])
@@ -174,7 +174,7 @@ class CameraStreamNode:
 
         start_time = time.time()
 
-        # 1. Run YOLO Object Detection
+        # 1. Run Object Detection
         detections = self.detector.detect(frame)
 
         # 2. Update Multi-Object Tracker
@@ -182,13 +182,18 @@ class CameraStreamNode:
 
         # Classify entities
         workers = [t for t in tracks if t.industrial_type == "worker"]
-        machinery = [t for t in tracks if t.industrial_type in ["forklift", "truck", "excavator", "heavy_machinery"]]
+        machinery = [t for t in tracks if t.industrial_type in ["forklift", "truck", "excavator"]]
+        obstacles = [t for t in tracks if t.industrial_type in ["hazard_obstacle", "obstacle", "cart"]]
 
         # 3. Compute Proximity & TTC
         proximities: List[ProximityAnalysis] = []
         for worker in workers:
             for machine in machinery:
                 prox = self.ttc_engine.compute_proximity(worker, machine)
+                proximities.append(prox)
+        for obstacle in obstacles:
+            for machine in machinery:
+                prox = self.ttc_engine.compute_proximity(obstacle, machine)
                 proximities.append(prox)
 
         # 4. Deterministic Safety Evaluation
@@ -216,13 +221,14 @@ class CameraStreamNode:
         # Periodic Event Persistence & Async Trigger
         if (is_critical or (active_incident and active_incident.risk_level == "CRITICAL")) and (time.time() - self.last_incident_time > 4.0):
             self.last_incident_time = time.time()
+            target_entity = workers[0] if workers else (obstacles[0] if obstacles else None)
             inc_dict = {
                 "incident_id": f"INC-SWARM-{int(time.time())}",
-                "worker_id": workers[0].track_id if workers else "W-017",
+                "worker_id": target_entity.track_id if target_entity else "W-017",
                 "machine_id": machinery[0].track_id if machinery else "F-004",
                 "machine_type": "forklift" if machinery else "general_hazard",
-                "distance_m": proximities[0].estimated_distance_m if proximities else 2.1,
-                "ttc_seconds": proximities[0].ttc_seconds if proximities else 1.4,
+                "distance_m": proximities[0].estimated_distance_m if proximities else 1.2,
+                "ttc_seconds": proximities[0].ttc_seconds if proximities else 0.8,
                 "risk_level": "CRITICAL" if is_critical else "WARNING",
                 "zone": self.zone_label[:7],
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -256,10 +262,12 @@ class CameraStreamNode:
         return buffer.tobytes()
 
     def _render_hud(self, frame: np.ndarray, tracks: List[TrackedObject], proximities: List[ProximityAnalysis], is_critical: bool, is_warning: bool):
-        COLOR_SAFE = (0, 220, 100)
-        COLOR_WARN = (0, 200, 255)
-        COLOR_CRIT = (30, 30, 255)
-        COLOR_FIRE = (0, 100, 255) # Bright Orange
+        COLOR_SAFE = (0, 220, 100)      # Clean Green
+        COLOR_WARN = (0, 200, 255)      # Amber Yellow
+        COLOR_CRIT = (30, 30, 255)      # Bright Red
+        COLOR_FORKLIFT = (255, 175, 0)  # Bright Cyan/Sky-Blue in BGR
+        COLOR_CART = (0, 215, 255)      # Industrial Yellow in BGR
+        COLOR_FIRE = (0, 100, 255)      # Bright Orange
 
         # 1. Camera Node Badge
         cv2.rectangle(frame, (10, 10), (220, 38), (15, 20, 30), -1)
@@ -269,10 +277,28 @@ class CameraStreamNode:
         # 2. Draw tracks
         for trk in tracks:
             x1, y1, x2, y2 = [int(v) for v in trk.bbox]
-            bcolor = COLOR_CRIT if is_critical else (COLOR_WARN if is_warning else COLOR_SAFE)
+            
+            # Select color based on category and alert state
+            if is_critical and trk.industrial_type in ["worker", "forklift"]:
+                bcolor = COLOR_CRIT
+            elif trk.industrial_type == "forklift":
+                bcolor = COLOR_CRIT if is_critical else COLOR_FORKLIFT
+            elif trk.industrial_type == "worker":
+                bcolor = COLOR_CRIT if is_critical else (COLOR_WARN if is_warning else COLOR_SAFE)
+            elif trk.industrial_type in ["hazard_obstacle", "obstacle", "cart"]:
+                bcolor = COLOR_CART
+            else:
+                bcolor = COLOR_WARN
+
             cv2.rectangle(frame, (x1, y1), (x2, y2), bcolor, 2)
 
-            tag = f"{trk.track_id} ({trk.industrial_type.upper()})"
+            if trk.industrial_type == "forklift":
+                tag = f"{trk.track_id} (FORKLIFT)"
+            elif trk.industrial_type in ["hazard_obstacle", "obstacle", "cart"]:
+                tag = f"{trk.track_id} (OBSTACLE / CART)"
+            else:
+                tag = f"{trk.track_id} ({trk.industrial_type.upper()})"
+
             (tw, th), _ = cv2.getTextSize(tag, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
             cv2.rectangle(frame, (x1, y1 - th - 5), (x1 + tw + 4, y1), bcolor, -1)
             cv2.putText(frame, tag, (x1 + 2, y1 - 3), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1, cv2.LINE_AA)
@@ -281,7 +307,7 @@ class CameraStreamNode:
         for prox in proximities:
             w_pt = (int(prox.worker_pos[0]), int(prox.worker_pos[1]))
             m_pt = (int(prox.machine_pos[0]), int(prox.machine_pos[1]))
-            lcolor = COLOR_CRIT if is_critical else COLOR_WARN
+            lcolor = COLOR_CRIT if (is_critical or prox.estimated_distance_m < 2.5) else COLOR_WARN
             cv2.line(frame, w_pt, m_pt, lcolor, 2, cv2.LINE_AA)
             mid_x, mid_y = int((w_pt[0] + m_pt[0]) / 2), int((w_pt[1] + m_pt[1]) / 2) - 8
             label = f"Dist: {prox.estimated_distance_m}m"

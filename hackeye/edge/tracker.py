@@ -73,6 +73,7 @@ class ObjectTracker:
         self.next_worker_idx = 1
         self.next_forklift_idx = 4
         self.next_truck_idx = 1
+        self.next_object_idx = 1
         self.next_machinery_idx = 1
         self.max_missed = max_missed
         self.match_distance_thresh = match_distance_thresh
@@ -90,6 +91,10 @@ class ObjectTracker:
         elif industrial_type == "truck":
             tid = f"T-{self.next_truck_idx:03d}"
             self.next_truck_idx += 1
+            return tid
+        elif industrial_type in ["hazard_obstacle", "obstacle", "cart"]:
+            tid = f"OBJ-{self.next_object_idx:03d}"
+            self.next_object_idx += 1
             return tid
         else:
             tid = f"M-{self.next_machinery_idx:03d}"
