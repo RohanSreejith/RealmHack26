@@ -8,7 +8,64 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
+
+const NativeVideoPlayer: React.FC<{
+  source: string;
+  isPlaying: boolean;
+  onLoaded?: () => void;
+}> = ({ source, isPlaying, onLoaded }) => {
+  const player = useVideoPlayer(source, p => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+    onLoaded?.();
+  });
+
+  useEffect(() => {
+    if (player) {
+      if (isPlaying) {
+        player.play();
+      } else {
+        player.pause();
+      }
+    }
+  }, [isPlaying, player]);
+
+  return (
+    <VideoView
+      style={StyleSheet.absoluteFill}
+      player={player}
+      nativeControls={false}
+      contentFit="cover"
+    />
+  );
+};
+
+class SafeNativeVideoBoundary extends React.Component<
+  { fallback: React.ReactNode; children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any) {
+    console.log('[SafeNativeVideoBoundary catch]', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
 
 interface IncidentVideoClipProps {
   clipUrl?: string;
@@ -63,14 +120,6 @@ export const IncidentVideoClip: React.FC<IncidentVideoClipProps> = ({
           videoRef.current.pause();
           setIsPlaying(false);
         }
-      } else if (videoRef.current) {
-        if (isPlaying) {
-          await videoRef.current.pauseAsync();
-          setIsPlaying(false);
-        } else {
-          await videoRef.current.playAsync();
-          setIsPlaying(true);
-        }
       } else {
         setIsPlaying(prev => !prev);
       }
@@ -84,10 +133,6 @@ export const IncidentVideoClip: React.FC<IncidentVideoClipProps> = ({
       if (Platform.OS === 'web' && videoRef.current) {
         videoRef.current.currentTime = 0;
         videoRef.current.play();
-        setIsPlaying(true);
-      } else if (videoRef.current) {
-        await videoRef.current.setPositionAsync(0);
-        await videoRef.current.playAsync();
         setIsPlaying(true);
       } else {
         setPlaybackTime(0);
@@ -108,14 +153,9 @@ export const IncidentVideoClip: React.FC<IncidentVideoClipProps> = ({
     setHasError(false);
     setPlaybackTime(0);
     setIsPlaying(true);
-    if (videoRef.current) {
-      if (Platform.OS === 'web') {
-        videoRef.current.currentTime = 0;
-        videoRef.current.play?.().catch(() => {});
-      } else {
-        videoRef.current.setPositionAsync?.(0).catch(() => {});
-        videoRef.current.playAsync?.().catch(() => {});
-      }
+    if (videoRef.current && Platform.OS === 'web') {
+      videoRef.current.currentTime = 0;
+      videoRef.current.play?.().catch(() => {});
     }
   }, [clipUrl]);
 
@@ -128,6 +168,14 @@ export const IncidentVideoClip: React.FC<IncidentVideoClipProps> = ({
     }
     return () => clearInterval(timer);
   }, [isPlaying]);
+
+  const fallbackCctvView = (
+    <View style={styles.fallbackPlayer}>
+      <MaterialCommunityIcons name="cctv" size={44} color="#64748B" />
+      <Text style={styles.fallbackTitle}>Incident Camera Clip Stream</Text>
+      <Text style={styles.fallbackSubtitle}>{machineName} • Loop Active</Text>
+    </View>
+  );
 
   return (
     <View style={[styles.container, { borderColor: badgeColor }]}>
@@ -173,29 +221,19 @@ export const IncidentVideoClip: React.FC<IncidentVideoClipProps> = ({
             />
           </div>
         ) : (
-          <View style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#020617', justifyContent: 'center', alignItems: 'center' }}>
-            <Video
-              ref={videoRef}
-              key={currentSource}
-              source={{ uri: currentSource }}
-              rate={1.0}
-              volume={1.0}
-              isMuted={true}
-              resizeMode={ResizeMode.COVER}
-              shouldPlay={isPlaying}
-              isLooping
-              useNativeControls={false}
-              style={StyleSheet.absoluteFill}
-              onLoad={() => setIsLoaded(true)}
-              onError={(e) => {
-                console.log('[Native Video Error, switching fallback]', e);
-                setHasError(true);
-              }}
-            />
-            {!isLoaded && (
-              <ActivityIndicator size="small" color="#2563EB" style={{ position: 'absolute' }} />
-            )}
-          </View>
+          <SafeNativeVideoBoundary fallback={fallbackCctvView}>
+            <View style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#020617', justifyContent: 'center', alignItems: 'center' }}>
+              <NativeVideoPlayer
+                key={currentSource}
+                source={currentSource}
+                isPlaying={isPlaying}
+                onLoaded={() => setIsLoaded(true)}
+              />
+              {!isLoaded && (
+                <ActivityIndicator size="small" color="#2563EB" style={{ position: 'absolute' }} />
+              )}
+            </View>
+          </SafeNativeVideoBoundary>
         )}
 
         {/* Tactical HUD Bounding Overlay */}
