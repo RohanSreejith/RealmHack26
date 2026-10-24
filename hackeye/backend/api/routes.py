@@ -339,7 +339,7 @@ def trigger_n8n_test():
     return n8n_client.dispatch_critical_incident(test_incident, test_ai)
 
 import os
-is_render_env = bool(os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID"))
+is_render_env = os.getenv("RENDER") == "true" or os.getenv("RENDER_INSTANCE_ID") is not None
 if not is_render_env:
     try:
         from hackeye.backend.services.video_stream import dual_camera_manager
