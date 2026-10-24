@@ -10,7 +10,6 @@ import asyncio
 
 from hackeye.backend.database.db import get_db
 from hackeye.backend.database.models import Incident, Worker, Machine, SwarmEvent, SafetyInsight, SyncQueue
-from hackeye.backend.services.video_stream import video_processor
 from hackeye.swarm.coordinator import swarm_coordinator
 from hackeye.ai.safety_agent import ai_safety_agent
 from hackeye.render.workflow_engine import render_workflow_orchestrator
@@ -339,12 +338,20 @@ def trigger_n8n_test():
     }
     return n8n_client.dispatch_critical_incident(test_incident, test_ai)
 
-from hackeye.backend.services.video_stream import dual_camera_manager, video_processor
+import os
+is_render_env = bool(os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID"))
+if not is_render_env:
+    try:
+        from hackeye.backend.services.video_stream import dual_camera_manager
+    except Exception:
+        dual_camera_manager = None
+else:
+    dual_camera_manager = None
 
 # Demo Controller Endpoints
 @router.post("/demo/scenario/{scenario_name}")
 def trigger_demo_scenario(scenario_name: str):
-    sc_info = dual_camera_manager.set_scenario(scenario_name)
+    sc_info = dual_camera_manager.set_scenario(scenario_name) if dual_camera_manager else {}
     res = demo_controller.run_scenario(scenario_name)
     return {**res, **sc_info}
 
@@ -356,8 +363,9 @@ def toggle_cloud_connection(payload: Dict[str, bool]):
 # Real-Time Telemetry & Multi-Camera Video MJPEG Streams
 @router.get("/stream/telemetry")
 def get_stream_telemetry():
+    telemetry = dual_camera_manager.get_telemetry() if dual_camera_manager else {"status": "edge_stream_local_only"}
     return {
-        **dual_camera_manager.get_telemetry(),
+        **telemetry,
         "cloud_connected": demo_controller.cloud_connected,
         "pending_sync_count": local_queue.get_pending_sync_count()
     }
@@ -365,10 +373,11 @@ def get_stream_telemetry():
 async def mjpeg_generator(camera_id: str = "cam_a"):
     while True:
         try:
-            frame_bytes = dual_camera_manager.get_frame(camera_id)
-            if frame_bytes:
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+            if dual_camera_manager:
+                frame_bytes = dual_camera_manager.get_frame(camera_id)
+                if frame_bytes:
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
             await asyncio.sleep(0.04)  # ~25 FPS delivery to browser
         except Exception:
             await asyncio.sleep(0.05)
@@ -397,9 +406,10 @@ async def get_video_stream():
 @router.get("/stream/frame")
 def get_single_frame(cam: str = "cam_a"):
     """Returns single latest JPEG frame snapshot without persistent stream connection."""
-    frame_bytes = dual_camera_manager.get_frame(cam)
-    if frame_bytes:
-        return Response(content=frame_bytes, media_type="image/jpeg")
+    if dual_camera_manager:
+        frame_bytes = dual_camera_manager.get_frame(cam)
+        if frame_bytes:
+            return Response(content=frame_bytes, media_type="image/jpeg")
     return Response(status_code=204)
 
 # --- Configurable Safety Rules API ---
