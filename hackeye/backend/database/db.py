@@ -35,6 +35,8 @@ def init_db():
         if not db.query(Worker).first():
             db.add_all([
                 Worker(worker_id="W-001", name="Marcus Vance", current_zone="ZONE_01"),
+                Worker(worker_id="W-006", name="Alex Rivera", current_zone="ZONE_01"),
+                Worker(worker_id="W-008", name="Kenji Sato", current_zone="ZONE_01"),
                 Worker(worker_id="W-017", name="Elena Rostova", current_zone="ZONE_01"),
                 Worker(worker_id="W-042", name="David Kim", current_zone="ZONE_02"),
                 Worker(worker_id="W-103", name="Sarah Jenkins", current_zone="ZONE_03"),
@@ -42,6 +44,7 @@ def init_db():
             db.add_all([
                 Machine(machine_id="F-004", machine_type="forklift", current_zone="ZONE_01", warning_radius=6.0, critical_radius=3.0),
                 Machine(machine_id="F-012", machine_type="forklift", current_zone="ZONE_02", warning_radius=6.0, critical_radius=3.0),
+                Machine(machine_id="F-025", machine_type="forklift", current_zone="ZONE_01", warning_radius=6.0, critical_radius=3.0),
                 Machine(machine_id="T-088", machine_type="truck", current_zone="ZONE_03", warning_radius=8.0, critical_radius=4.0),
                 Machine(machine_id="E-002", machine_type="excavator", current_zone="ZONE_03", warning_radius=10.0, critical_radius=5.0),
             ])
