@@ -255,7 +255,7 @@ class RenderWorkflowOrchestrator:
         time.sleep(0.15)
         s2_latency = 35
         s2.complete(s2_latency, {
-            "worker_name": "Elena Rostova (Logistics)",
+            "worker_name": f"Worker ({worker_id})" if worker_id else "Worker",
             "worker_role": "Pedestrian Transitor",
             "machine_model": f"{machine_type.title()} Core Industrial Unit",
             "historical_near_misses_in_zone": 4,

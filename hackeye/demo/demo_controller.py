@@ -74,7 +74,7 @@ class DemoController:
 
             inc_dict["ai_analysis"] = ai_res
             inc_dict["knowledge_cited"] = "OSHA 1910.178(n)(4) - Powered Industrial Trucks: Blind Intersections"
-            inc_dict["worker_name"] = "Elena Rostova"
+            inc_dict["worker_name"] = "Worker (W-017)"
             local_queue.persist_incident(inc_dict)
 
             # Swarm cross-zone alert: Node 01 warns Node 02

@@ -98,6 +98,27 @@ export const IncidentVideoClip: React.FC<IncidentVideoClipProps> = ({
     }
   };
 
+  const [hasError, setHasError] = useState(false);
+  const currentSource = hasError 
+    ? `${(process.env.EXPO_PUBLIC_RENDER_URL || "https://hackeye-cloud-platform.onrender.com").replace(/\/$/, "")}/videos/forklift_approaching_entrance.mp4`
+    : videoSource;
+
+  useEffect(() => {
+    setIsLoaded(false);
+    setHasError(false);
+    setPlaybackTime(0);
+    setIsPlaying(true);
+    if (videoRef.current) {
+      if (Platform.OS === 'web') {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play?.().catch(() => {});
+      } else {
+        videoRef.current.setPositionAsync?.(0).catch(() => {});
+        videoRef.current.playAsync?.().catch(() => {});
+      }
+    }
+  }, [clipUrl]);
+
   useEffect(() => {
     let timer: any;
     if (isPlaying) {
@@ -135,12 +156,14 @@ export const IncidentVideoClip: React.FC<IncidentVideoClipProps> = ({
           <div style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#020617' }}>
             <video
               ref={videoRef}
-              src={videoSource}
+              key={currentSource}
+              src={currentSource}
               autoPlay
               loop
               muted
               playsInline
               onLoadedData={() => setIsLoaded(true)}
+              onError={() => setHasError(true)}
               style={{
                 width: '100%',
                 height: '100%',
@@ -153,16 +176,21 @@ export const IncidentVideoClip: React.FC<IncidentVideoClipProps> = ({
           <View style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#020617', justifyContent: 'center', alignItems: 'center' }}>
             <Video
               ref={videoRef}
-              source={{ uri: videoSource }}
+              key={currentSource}
+              source={{ uri: currentSource }}
               rate={1.0}
               volume={1.0}
               isMuted={true}
               resizeMode={ResizeMode.COVER}
               shouldPlay={isPlaying}
               isLooping
+              useNativeControls={false}
               style={StyleSheet.absoluteFill}
               onLoad={() => setIsLoaded(true)}
-              onError={(e) => console.log('[Native Video Error]', e)}
+              onError={(e) => {
+                console.log('[Native Video Error, switching fallback]', e);
+                setHasError(true);
+              }}
             />
             {!isLoaded && (
               <ActivityIndicator size="small" color="#2563EB" style={{ position: 'absolute' }} />

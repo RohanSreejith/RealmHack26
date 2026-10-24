@@ -98,7 +98,11 @@ export const IncidentAnalysisView: React.FC<IncidentAnalysisViewProps> = ({
         <View style={styles.entityRow}>
           <View style={styles.entityPill}>
             <MaterialCommunityIcons name="account-hard-hat" size={16} color="#2563EB" />
-            <Text style={styles.entityText}>{incident.workerName} ({incident.workerId})</Text>
+            <Text style={styles.entityText}>
+              {incident.workerName?.includes(incident.workerId)
+                ? incident.workerName
+                : (incident.workerName ? `${incident.workerName} (${incident.workerId})` : `Worker (${incident.workerId || 'W-017'})`)}
+            </Text>
           </View>
 
           <View style={styles.entityPill}>

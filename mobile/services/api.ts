@@ -15,7 +15,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Base URL configured via Expo environment variables
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
+const LOCAL_BACKEND_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, "");
+const CLOUD_BACKEND_URL = (process.env.EXPO_PUBLIC_RENDER_URL || 'https://hackeye-cloud-platform.onrender.com').replace(/\/$/, "");
 const FORCE_MOCK = process.env.EXPO_PUBLIC_USE_MOCK === 'true';
 
 const STORAGE_KEYS = {
@@ -26,10 +27,28 @@ const STORAGE_KEYS = {
 };
 
 class ApiService {
-  private isMockMode: boolean = true; // default to true until live connection verified
+  private isMockMode: boolean = true;
+  private activeBaseUrl: string = CLOUD_BACKEND_URL;
 
   constructor() {
     this.checkLiveBackend();
+  }
+
+  public getActiveBaseUrl(): string {
+    return this.activeBaseUrl;
+  }
+
+  public resolveClipUrl(rawClip?: string): string {
+    const cloudBase = CLOUD_BACKEND_URL;
+    if (!rawClip) return `${cloudBase}/videos/forklift_approaching_entrance.mp4`;
+    if (rawClip.startsWith('http://localhost') || rawClip.startsWith('http://127.0.0.1')) {
+      const path = rawClip.replace(/^http:\/\/(localhost|127\.0\.0\.1):8000/, '');
+      return `${cloudBase}${path}`;
+    }
+    if (rawClip.startsWith('/videos')) {
+      return `${cloudBase}${rawClip}`;
+    }
+    return rawClip;
   }
 
   public async checkLiveBackend(): Promise<boolean> {
@@ -37,20 +56,27 @@ class ApiService {
       this.isMockMode = true;
       return false;
     }
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
-      const res = await fetch(`${API_BASE_URL}/api/health`, {
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      if (res.ok) {
-        this.isMockMode = false;
-        return true;
+
+    // Try Cloud Backend first (accessible from everywhere including physical phones on cellular/wifi)
+    const targets = [CLOUD_BACKEND_URL, LOCAL_BACKEND_URL];
+    for (const target of targets) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2500);
+        const res = await fetch(`${target}/api/health`, {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          this.activeBaseUrl = target;
+          this.isMockMode = false;
+          return true;
+        }
+      } catch {
+        // Continue to next candidate
       }
-    } catch {
-      // Backend not currently reachable, gracefully use mock
     }
+
     this.isMockMode = true;
     return false;
   }
@@ -64,14 +90,15 @@ class ApiService {
   }
 
   public getApiUrl(): string {
-    return API_BASE_URL;
+    return this.activeBaseUrl;
   }
 
   // --- SITE OVERVIEW ---
   public async getSiteOverview(): Promise<SiteOverview> {
+    const baseUrl = this.activeBaseUrl;
     if (!this.isMockMode) {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/analytics`);
+        const res = await fetch(`${baseUrl}/api/analytics`);
         if (res.ok) {
           const data = await res.json();
           return {
@@ -125,18 +152,18 @@ class ApiService {
 
   // --- INCIDENTS ---
   public async getIncidents(): Promise<Incident[]> {
+    const baseUrl = this.activeBaseUrl;
     if (!this.isMockMode) {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/incidents`);
+        const res = await fetch(`${baseUrl}/api/incidents`);
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
             // Map backend incidents to rich Incident interface
             return data.map((item: any, idx: number) => {
-              const rawClip = item.clip_url || item.clipUrl;
-              const fullClipUrl = rawClip 
-                ? (rawClip.startsWith('http') ? rawClip : `${API_BASE_URL}${rawClip}`)
-                : `${API_BASE_URL}/videos/forklift_approaching_entrance.mp4`;
+              const fullClipUrl = this.resolveClipUrl(item.clip_url || item.clipUrl);
+              const workerLabel = item.worker_name || (item.worker_id ? `Worker (${item.worker_id})` : "Worker");
+              const aiAnalysisObj = item.ai_analysis || {};
 
               return {
                 id: item.incident_id || `inc-${idx}`,
@@ -145,16 +172,16 @@ class ApiService {
                 zone: item.zone || "Zone 01 (Bay Entrance)",
                 zoneId: "zone-01",
                 cameraId: "CAM-01",
-                cameraName: "Loading Bay Safety Cam",
+                cameraName: item.zone ? `${item.zone.split(' ')[0]} Safety Cam` : "Loading Bay Safety Cam",
                 timestamp: item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : "14:32:18",
                 durationSeconds: item.ttc_seconds ? Number(item.ttc_seconds) * 1.5 : 2.4,
                 riskLevel: item.risk_level || "CRITICAL",
                 status: item.status || "ACTIVE",
                 workerId: item.worker_id || "W-017",
-                workerName: item.worker_id === "W-104" ? "Marcus Vance" : "Elena Rostova",
+                workerName: workerLabel,
                 machineId: item.machine_id || "F-004",
                 machineType: item.machine_type || "forklift",
-                machineName: item.machine_type === "excavator" ? "CAT 320 Hydraulic Excavator" : "Toyota Electric Forklift",
+                machineName: item.machine_type === "excavator" ? "CAT 320 Hydraulic Excavator" : (item.machine_id ? `Industrial Unit (${item.machine_id})` : "Toyota Electric Forklift"),
                 clipUrl: fullClipUrl,
                 deterministicTrigger: {
                   workerDetected: true,
@@ -170,19 +197,25 @@ class ApiService {
                 aiRiskAnalysis: {
                   riskLevel: item.risk_level || "CRITICAL",
                   confidence: 0.95,
-                  summary: item.ai_summary || `Worker ${item.worker_id || 'W-017'} in close proximity (${item.distance_m || 1.8}m) to moving machinery.`,
-                  contributingFactors: [
-                    `Clearance distance (${item.distance_m || 1.8}m) below 3.5m exclusion zone`,
-                    `TTC margin of ${item.ttc_seconds || 1.4}s provides minimal emergency reaction time`,
-                    "Visual obstruction at high-traffic entrance threshold"
-                  ],
-                  recommendedAction: "Acoustic strobe beacon activated. Verify machinery clearance and maintain pedestrian lane.",
-                  applicableRules: ["OSHA 1910.178(n)(4) - Powered Industrial Trucks", "OSHA 1926.601"],
+                  summary: item.ai_summary || (aiAnalysisObj.reason) || `${workerLabel} in proximity (${item.distance_m || 1.8}m) to active equipment.`,
+                  contributingFactors: Array.isArray(aiAnalysisObj.contributing_factors) && aiAnalysisObj.contributing_factors.length > 0
+                    ? aiAnalysisObj.contributing_factors
+                    : [
+                      `Clearance distance (${item.distance_m || 1.8}m) below 3.5m exclusion buffer`,
+                      `TTC margin of ${item.ttc_seconds || 1.4}s provides minimal reaction time`,
+                      "Line-of-sight obstruction at active logistics threshold"
+                    ],
+                  recommendedAction: (Array.isArray(aiAnalysisObj.recommended_actions) && aiAnalysisObj.recommended_actions[0])
+                    ? aiAnalysisObj.recommended_actions[0]
+                    : "Acoustic strobe beacon activated. Verify machinery clearance and maintain pedestrian lane.",
+                  applicableRules: item.knowledge_cited
+                    ? [item.knowledge_cited]
+                    : ["OSHA 1910.178(n)(4) - Powered Industrial Trucks", "OSHA 1926.601"],
                   safetyReference: {
-                    title: "Industrial Truck Pedestrian Separation",
-                    code: "OSHA Standard 29 CFR 1910.178(n)(4)",
-                    source: "Safety Knowledge Base (Firecrawl Ingestion)",
-                    guidance: "Operators must maintain safe clearance from pedestrian paths and sound horn at all obstructed corners."
+                    title: item.knowledge_cited || "Industrial Truck Pedestrian Separation",
+                    code: item.knowledge_cited ? item.knowledge_cited.split(' - ')[0] : "OSHA Standard 29 CFR 1910.178(n)(4)",
+                    source: "Safety Knowledge Base (Firecrawl Grounding)",
+                    guidance: "Operators must maintain safe clearance from pedestrian paths and sound horn at all obstructed doorways."
                   },
                   latencySeconds: 1.4
                 }
@@ -220,7 +253,7 @@ class ApiService {
     // Try posting to backend if live
     if (!this.isMockMode) {
       try {
-        await fetch(`${API_BASE_URL}/api/incidents/${incidentId}/acknowledge`, {
+        await fetch(`${this.activeBaseUrl}/api/incidents/${incidentId}/acknowledge`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ supervisor: supervisorName })
@@ -265,7 +298,7 @@ class ApiService {
 
     if (!this.isMockMode) {
       try {
-        await fetch(`${API_BASE_URL}/api/incidents/${incidentId}/resolve`, {
+        await fetch(`${this.activeBaseUrl}/api/incidents/${incidentId}/resolve`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ note: resolutionNote })
@@ -293,15 +326,13 @@ class ApiService {
 
   public async simulateIncident(): Promise<Incident | null> {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/incidents/simulate`, { method: 'POST' });
+      const res = await fetch(`${this.activeBaseUrl}/api/incidents/simulate`, { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
         if (data?.incident) {
           const item = data.incident;
-          const rawClip = item.clip_url || item.clipUrl;
-          const fullClipUrl = rawClip 
-            ? (rawClip.startsWith('http') ? rawClip : `${API_BASE_URL}${rawClip}`)
-            : `${API_BASE_URL}/videos/forklift_approaching_entrance.mp4`;
+          const fullClipUrl = this.resolveClipUrl(item.clip_url || item.clipUrl);
+          const workerLabel = item.worker_name || (item.worker_id ? `Worker (${item.worker_id})` : "Worker (W-017)");
 
           const mapped: Incident = {
             id: item.incident_id,
@@ -316,7 +347,7 @@ class ApiService {
             riskLevel: (item.risk_level as any) || "CRITICAL",
             status: "ACTIVE",
             workerId: item.worker_id || "W-017",
-            workerName: "Elena Rostova",
+            workerName: workerLabel,
             machineId: item.machine_id || "F-004",
             machineType: "forklift",
             machineName: "Toyota Electric Forklift",
@@ -371,11 +402,11 @@ class ApiService {
       riskLevel: "CRITICAL",
       status: "ACTIVE",
       workerId: "W-017",
-      workerName: "Elena Rostova",
+      workerName: "Worker (W-017)",
       machineId: "F-004",
       machineType: "forklift",
       machineName: "Toyota Electric Forklift",
-      clipUrl: `${API_BASE_URL}/videos/forklift_approaching_entrance.mp4`,
+      clipUrl: this.resolveClipUrl('/videos/forklift_approaching_entrance.mp4'),
       deterministicTrigger: {
         workerDetected: true,
         machineDetected: true,
@@ -390,7 +421,7 @@ class ApiService {
       aiRiskAnalysis: {
         riskLevel: "CRITICAL",
         confidence: 0.96,
-        summary: "Rapid trajectory convergence between worker W-017 and Toyota Forklift F-004 in Zone 01 entrance.",
+        summary: "Rapid trajectory convergence between Worker (W-017) and Toyota Forklift F-004 in Zone 01 entrance.",
         contributingFactors: [
           "TTC estimated at 1.4s (< 2.0s emergency threshold)",
           "Clearance distance reduced to 1.8m in blind corner doorway",

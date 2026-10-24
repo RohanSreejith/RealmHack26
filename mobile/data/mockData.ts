@@ -87,7 +87,7 @@ export const MOCK_INCIDENTS: Incident[] = [
     machineId: "EX-02",
     machineType: "excavator",
     machineName: "CAT 320 Hydraulic Excavator",
-    clipUrl: "/videos/videos/nearmiss-rgb-00000/001e53453441935632ae_run_1_seed_1288693302.ceiling_00.rgb.mp4",
+    clipUrl: "/videos/worker_at_entrance_inside.mp4",
     deterministicTrigger: {
       workerDetected: true,
       machineDetected: true,
