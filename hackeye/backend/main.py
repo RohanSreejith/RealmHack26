@@ -75,10 +75,22 @@ if os.path.exists(videos_dir):
 
 @app.get("/")
 async def serve_dashboard():
+    is_render = bool(os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID"))
+    if is_render:
+        cloud_index = os.path.join(dashboard_dir, "cloud_dashboard.html")
+        if os.path.exists(cloud_index):
+            return FileResponse(cloud_index)
     index_path = os.path.join(dashboard_dir, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return {"message": "Hack-Eye Edge API Operational. Dashboard HTML not found."}
+
+@app.get("/cloud")
+async def serve_cloud_portal():
+    cloud_index = os.path.join(dashboard_dir, "cloud_dashboard.html")
+    if os.path.exists(cloud_index):
+        return FileResponse(cloud_index)
+    return {"message": "Hack-Eye Cloud Portal Operational."}
 
 if __name__ == "__main__":
     import uvicorn
