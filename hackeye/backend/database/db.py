@@ -10,15 +10,24 @@ db_url = settings.DATABASE_URL
 if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(
-    db_url,
-    connect_args={"check_same_thread": False} if "sqlite" in db_url else {}
-)
+try:
+    if "postgresql" in db_url:
+        connect_args = {"sslmode": "require"} if "oregon-postgres" in db_url else {}
+        engine = create_engine(db_url, connect_args=connect_args)
+    else:
+        engine = create_engine(db_url, connect_args={"check_same_thread": False})
+except Exception as e:
+    print(f"[Hack-Eye DB] Warning initializing engine ({e}), falling back to local SQLite.")
+    engine = create_engine("sqlite:///hackeye_edge.db", connect_args={"check_same_thread": False})
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"[Hack-Eye DB] Metadata creation notice: {e}")
+        return
     
     # Seed default workers and machinery if empty
     db = SessionLocal()

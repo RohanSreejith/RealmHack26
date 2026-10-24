@@ -12,22 +12,37 @@ from fastapi.responses import FileResponse
 from hackeye.backend.config import settings
 from hackeye.backend.database.db import init_db
 from hackeye.backend.api.routes import router as api_router
-from hackeye.backend.services.video_stream import dual_camera_manager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Initialize Database schema and seed default nodes
-    print("[Hack-Eye] Initializing edge database schema...")
-    init_db()
+    print("[Hack-Eye] Initializing database schema...")
+    try:
+        init_db()
+    except Exception as e:
+        print(f"[Hack-Eye Database] init_db warning: {e}")
     
-    # Auto-start default swarm dual-camera streams
-    dual_camera_manager.start_all()
+    # Auto-start swarm dual-camera streams ONLY on edge (not in Render cloud)
+    is_render = bool(os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID"))
+    if not is_render:
+        try:
+            from hackeye.backend.services.video_stream import dual_camera_manager
+            dual_camera_manager.start_all()
+            print("[Hack-Eye Edge] Dual camera safety streams active.")
+        except Exception as e:
+            print(f"[Hack-Eye Edge] Camera stream notice: {e}")
+    else:
+        print("[Hack-Eye Cloud] Running in Render Cloud environment. Edge video capture handled by local edge nodes.")
     
     yield
     
     # Shutdown
-    print("[Hack-Eye] Stopping edge swarm stream processors...")
-    dual_camera_manager.stop_all()
+    if not is_render:
+        try:
+            from hackeye.backend.services.video_stream import dual_camera_manager
+            dual_camera_manager.stop_all()
+        except Exception:
+            pass
 
 app = FastAPI(
     title=settings.APP_NAME,
