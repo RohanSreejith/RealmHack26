@@ -14,7 +14,6 @@ const NativeVideoPlayer: React.FC<{
   source: string;
   isPlaying: boolean;
 }> = ({ source, isPlaying }) => {
-  const [ready, setReady] = useState(false);
   const player = useVideoPlayer(source, p => {
     p.loop = true;
     p.muted = true;
@@ -31,20 +30,6 @@ const NativeVideoPlayer: React.FC<{
     }
   }, [isPlaying, player]);
 
-  useEffect(() => {
-    if (!player) return;
-    const sub = player.addListener('statusChange', ({ status }: any) => {
-      if (status === 'readyToPlay') {
-        setReady(true);
-      }
-    });
-    const timer = setTimeout(() => setReady(true), 350);
-    return () => {
-      sub?.remove?.();
-      clearTimeout(timer);
-    };
-  }, [player]);
-
   return (
     <View style={StyleSheet.absoluteFill}>
       <VideoView
@@ -53,11 +38,6 @@ const NativeVideoPlayer: React.FC<{
         nativeControls={false}
         contentFit="cover"
       />
-      {!ready && (
-        <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#020617' }]}>
-          <ActivityIndicator size="small" color="#2563EB" />
-        </View>
-      )}
     </View>
   );
 };
