@@ -33,13 +33,47 @@ def get_health():
 def get_zones():
     return swarm_coordinator.get_swarm_status()
 
-def map_clip_for_incident(zone: Optional[str] = "", machine_type: Optional[str] = "", worker_id: Optional[str] = "") -> str:
+WORKER_DIRECTORY = {
+    "W-001": "Marcus Vance",
+    "W-002": "Sarah Jenkins",
+    "W-006": "Alex Rivera",
+    "W-008": "Kenji Sato",
+    "W-017": "Elena Rostova",
+    "W-022": "Liam O'Connor",
+    "W-030": "James Thorne",
+    "W-035": "Maya Lin",
+    "W-042": "David Kim",
+    "W-055": "Carlos Mendez",
+    "W-059": "Tanya Ward",
+    "W-103": "Sarah Jenkins",
+    "OPERATOR_F04": "Marcus Vance",
+    "ALL_PERSONNEL": "All Facility Personnel"
+}
+
+def resolve_worker_name(worker_id: Optional[str] = None) -> str:
+    if not worker_id:
+        return "Marcus Vance"
+    if worker_id in WORKER_DIRECTORY:
+        return WORKER_DIRECTORY[worker_id]
+    pool = ["Marcus Vance", "Alex Rivera", "Elena Rostova", "James Thorne", "David Kim", "Kenji Sato", "Maya Lin", "Carlos Mendez"]
+    digits = "".join(filter(str.isdigit, str(worker_id)))
+    idx = int(digits) if digits else 0
+    return pool[idx % len(pool)]
+
+def map_clip_for_incident(zone: Optional[str] = "", machine_type: Optional[str] = "", worker_id: Optional[str] = "", incident_id: Optional[str] = "") -> str:
     z = (zone or "").lower()
     m = (machine_type or "").lower()
-    if "truck" in m or "loading" in z:
+    inc = (incident_id or "").lower()
+    if "ppe" in inc or "helmet" in inc or "material_handling" in m or "storage" in m:
+        return "/videos/worker_no_helmet.mp4"
+    elif "fire" in inc or "thermal" in m:
+        return "/videos/videos/fire-rgb-00000/00023b5323028ab83e67_run_6_seed_1486583949.ceiling_00.rgb.mp4"
+    elif "collision" in inc or "rack" in inc:
+        return "/videos/videos/forklift_collision-rgb-00000/0021d0743dc26041d97b_run_5_seed_574698367.cam_00.rgb.mp4"
+    elif "boxes" in inc or "climb" in inc or "unknown" in inc:
+        return "/videos/videos/worker_on_boxes-rgb-00000/004c865fae3489fe83d1_run_4_seed_84136611.cam_00.rgb.mp4"
+    elif "truck" in m or "loading" in z:
         return "/videos/loading_zone_truck.mp4"
-    elif "excavator" in m or "excavation" in z:
-        return "/videos/videos/nearmiss-rgb-00000/001e53453441935632ae_run_1_seed_1288693302.ceiling_00.rgb.mp4"
     elif "zone_02" in z or "inside" in z:
         return "/videos/worker_at_entrance_inside.mp4"
     return "/videos/forklift_approaching_entrance.mp4"
@@ -47,13 +81,33 @@ def map_clip_for_incident(zone: Optional[str] = "", machine_type: Optional[str] 
 @router.get("/incidents")
 def get_incidents(limit: int = 25, db: Session = Depends(get_db)):
     incidents = db.query(Incident).order_by(Incident.timestamp.desc()).limit(limit).all()
-    return [
-        {
+    # Query worker database records
+    db_workers = {w.worker_id: w.name for w in db.query(Worker).all()}
+    
+    result = []
+    for inc in incidents:
+        w_name = db_workers.get(inc.worker_id) or resolve_worker_name(inc.worker_id)
+        clip = map_clip_for_incident(inc.zone, inc.machine_type, inc.worker_id, inc.incident_id)
+        
+        # Determine human-readable summary
+        if inc.ai_analysis and isinstance(inc.ai_analysis, dict) and inc.ai_analysis.get("reason"):
+            summary = inc.ai_analysis.get("reason")
+        elif "ppe" in inc.incident_id.lower() or "helmet" in inc.incident_id.lower():
+            summary = f"Worker {w_name} ({inc.worker_id}) detected handling cargo without required hard hat PPE in Zone 01."
+        elif "fire" in inc.incident_id.lower():
+            summary = "Thermal hazard: Active optical fire plume detected at ceiling level. Emergency evacuation active."
+        elif "collision" in inc.incident_id.lower():
+            summary = f"Vehicle impact: {inc.machine_id} collided with storage rack structural upright at 2.1 m/s."
+        else:
+            summary = f"Worker {w_name} ({inc.worker_id}) in close proximity ({inc.distance_m}m) to {inc.machine_type} {inc.machine_id}."
+
+        result.append({
             "incident_id": inc.incident_id,
             "title": f"{inc.risk_level.title() if inc.risk_level else 'Safety'} Incident: {(inc.machine_type or 'Machinery').title()} Proximity",
             "timestamp": inc.timestamp.isoformat() if inc.timestamp else None,
             "zone": inc.zone,
             "worker_id": inc.worker_id,
+            "worker_name": w_name,
             "machine_id": inc.machine_id,
             "machine_type": inc.machine_type,
             "distance_m": inc.distance_m,
@@ -62,13 +116,12 @@ def get_incidents(limit: int = 25, db: Session = Depends(get_db)):
             "status": inc.status,
             "local_alert_triggered": inc.local_alert_triggered,
             "sync_status": inc.sync_status,
-            "clip_url": map_clip_for_incident(inc.zone, inc.machine_type, inc.worker_id),
-            "ai_summary": inc.ai_analysis.get("reason") if inc.ai_analysis else (
-                f"Worker {inc.worker_id or 'W-017'} detected in close proximity ({inc.distance_m or 2.1}m) to active {inc.machine_type or 'forklift'}."
-            )
-        }
-        for inc in incidents
-    ]
+            "clip_url": clip,
+            "ai_analysis": inc.ai_analysis,
+            "knowledge_cited": inc.knowledge_cited,
+            "ai_summary": summary
+        })
+    return result
 
 @router.get("/incidents/{incident_id}")
 def get_incident_detail(incident_id: str, db: Session = Depends(get_db)):

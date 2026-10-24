@@ -48,19 +48,6 @@ class DemoController:
                 "closing_velocity_m_s": 1.45,
                 "local_alert_triggered": True
             }
-            local_queue.persist_incident(inc_dict)
-
-            # Swarm cross-zone alert: Node 01 warns Node 02
-            sw_event = swarm_coordinator.broadcast_interzone_event(
-                source_zone="ZONE_01 (Exterior Cam)",
-                destination_zone="ZONE_02 (Interior Door)",
-                event_type="VEHICLE_APPROACHING_CLEAR_DOOR",
-                worker_id="W-017",
-                machine_id="F-004",
-                risk="CRITICAL",
-                eta_seconds=2
-            )
-
             ai_res = {
                 "risk_assessment": "CRITICAL",
                 "reason": "Swarm Node 01 detected Forklift F-004 approaching blind entrance at 1.45m/s. Swarm Node 02 confirmed Worker W-017 stationed directly in the door threshold.",
@@ -85,6 +72,22 @@ class DemoController:
                 ]
             }
 
+            inc_dict["ai_analysis"] = ai_res
+            inc_dict["knowledge_cited"] = "OSHA 1910.178(n)(4) - Powered Industrial Trucks: Blind Intersections"
+            inc_dict["worker_name"] = "Elena Rostova"
+            local_queue.persist_incident(inc_dict)
+
+            # Swarm cross-zone alert: Node 01 warns Node 02
+            sw_event = swarm_coordinator.broadcast_interzone_event(
+                source_zone="ZONE_01 (Exterior Cam)",
+                destination_zone="ZONE_02 (Interior Door)",
+                event_type="VEHICLE_APPROACHING_CLEAR_DOOR",
+                worker_id="W-017",
+                machine_id="F-004",
+                risk="CRITICAL",
+                eta_seconds=2
+            )
+
             wf = render_workflow_orchestrator.trigger_incident_workflow(inc_dict, ai_res)
             n8n_client.dispatch_critical_incident(inc_dict, ai_res)
 
@@ -102,26 +105,9 @@ class DemoController:
 
         # SCENARIO 2: Box pickup dual view + No Helmet PPE violation
         elif scenario_key == "scenario_2_box_no_helmet":
-            inc_dict = {
-                "incident_id": f"INC-PPE-HELMET-{int(time.time())}",
-                "worker_id": "W-042",
-                "machine_id": "STATIONARY_STORAGE",
-                "machine_type": "material_handling",
-                "distance_m": 4.5,
-                "ttc_seconds": None,
-                "risk_level": "WARNING",
-                "zone": "ZONE_01 (Bay A)",
-                "timestamp": now_str,
-                "confidence": 0.92,
-                "is_converging": False,
-                "closing_velocity_m_s": 0.0,
-                "local_alert_triggered": True
-            }
-            local_queue.persist_incident(inc_dict)
-
             ai_res = {
                 "risk_assessment": "WARNING",
-                "reason": "Swarm multi-camera tracking (Cam 00 + Cam 01) identified Worker W-042 lifting heavy inventory crates without mandatory Type I Hard Hat / Helmet.",
+                "reason": "Swarm multi-camera tracking (Cam 00 + Cam 01) identified Worker David Kim (W-042) lifting heavy inventory crates without mandatory Type I Hard Hat / Helmet.",
                 "predicted_outcome": "Elevated vulnerability to falling overhead objects and racking head-strike during pallet de-stacking.",
                 "contributing_factors": [
                     "Failure to don PPE hard hat in designated active storage overhead zone",
@@ -143,6 +129,26 @@ class DemoController:
                 ]
             }
 
+            inc_dict = {
+                "incident_id": f"INC-PPE-HELMET-{int(time.time())}",
+                "worker_id": "W-042",
+                "worker_name": "David Kim",
+                "machine_id": "STATIONARY_STORAGE",
+                "machine_type": "material_handling",
+                "distance_m": 4.5,
+                "ttc_seconds": None,
+                "risk_level": "WARNING",
+                "zone": "ZONE_01 (Bay A)",
+                "timestamp": now_str,
+                "confidence": 0.92,
+                "is_converging": False,
+                "closing_velocity_m_s": 0.0,
+                "local_alert_triggered": True,
+                "ai_analysis": ai_res,
+                "knowledge_cited": "OSHA 1926.100(a) — Mandatory Head Protection & Personal Safety"
+            }
+            local_queue.persist_incident(inc_dict)
+
             wf = render_workflow_orchestrator.trigger_incident_workflow(inc_dict, ai_res)
 
             return {
@@ -158,9 +164,35 @@ class DemoController:
 
         # SCENARIO 3: Fire warning from dual ceiling cameras
         elif scenario_key == "scenario_3_fire":
+            ai_res = {
+                "risk_assessment": "CRITICAL",
+                "reason": "Overhead Ceiling Swarm Cameras (Ceiling 00 & Ceiling 01) detect active optical thermal flare and particulate smoke plume in primary logistics aisle.",
+                "predicted_outcome": "Rapid combustion spread to combustible cardboard pallets within 45 seconds; hazardous smoke inhalation.",
+                "contributing_factors": [
+                    "Combustible packing material staging adjacent to thermal source",
+                    "Airflow currents spreading smoke along high-bay ceiling corridors",
+                    "High density of personnel in neighboring warehouse quadrants"
+                ],
+                "recommended_actions": [
+                    "Trigger general facility acoustic fire alarm and emergency strobe beacons",
+                    "Automatically open emergency smoke dampers and trigger pre-action dry-pipe sprinklers",
+                    "Initiate automated 911 / Fire Department emergency dispatch with zone coordinates",
+                    "Direct all personnel to designated muster assembly points A and B"
+                ],
+                "confidence": 0.98,
+                "knowledge_used": [
+                    {
+                        "id": "NFPA-13-101",
+                        "title": "NFPA 101 / OSHA 1910.38 - Emergency Action Plans and Fire Suppression",
+                        "source": "National Fire Protection Association"
+                    }
+                ]
+            }
+
             inc_dict = {
                 "incident_id": f"INC-FIRE-EMERGENCY-{int(time.time())}",
                 "worker_id": "ALL_PERSONNEL",
+                "worker_name": "All Facility Personnel",
                 "machine_id": "CEILING_ZONE",
                 "machine_type": "thermal_hazard",
                 "distance_m": 0.0,
@@ -171,7 +203,9 @@ class DemoController:
                 "confidence": 0.98,
                 "is_converging": True,
                 "closing_velocity_m_s": 0.0,
-                "local_alert_triggered": True
+                "local_alert_triggered": True,
+                "ai_analysis": ai_res,
+                "knowledge_cited": "NFPA 101 / OSHA 1910.38 - Emergency Action Plans and Thermal Suppression"
             }
             local_queue.persist_incident(inc_dict)
 
@@ -225,23 +259,6 @@ class DemoController:
 
         # SCENARIO 4: Forklift collision with item/racking
         elif scenario_key == "scenario_4_item_collision":
-            inc_dict = {
-                "incident_id": f"INC-COLLISION-ITEM-{int(time.time())}",
-                "worker_id": "OPERATOR_F04",
-                "machine_id": "F-004 (Forklift)",
-                "machine_type": "forklift",
-                "distance_m": 0.4,
-                "ttc_seconds": 0.2,
-                "risk_level": "CRITICAL",
-                "zone": "ZONE_01 (Storage Bay)",
-                "timestamp": now_str,
-                "confidence": 0.97,
-                "is_converging": True,
-                "closing_velocity_m_s": 2.1,
-                "local_alert_triggered": True
-            }
-            local_queue.persist_incident(inc_dict)
-
             ai_res = {
                 "risk_assessment": "CRITICAL",
                 "reason": "Forklift F-004 collided with warehouse storage rack and loaded cargo pallet. High deceleration impact registered across Cam 00 and Cam 01.",
@@ -266,6 +283,26 @@ class DemoController:
                 ]
             }
 
+            inc_dict = {
+                "incident_id": f"INC-COLLISION-ITEM-{int(time.time())}",
+                "worker_id": "OPERATOR_F04",
+                "worker_name": "Marcus Vance",
+                "machine_id": "F-004 (Forklift)",
+                "machine_type": "forklift",
+                "distance_m": 0.4,
+                "ttc_seconds": 0.2,
+                "risk_level": "CRITICAL",
+                "zone": "ZONE_01 (Storage Bay)",
+                "timestamp": now_str,
+                "confidence": 0.97,
+                "is_converging": True,
+                "closing_velocity_m_s": 2.1,
+                "local_alert_triggered": True,
+                "ai_analysis": ai_res,
+                "knowledge_cited": "OSHA 1910.176(b) - Secure Storage and Racking Integrity Standards"
+            }
+            local_queue.persist_incident(inc_dict)
+
             wf = render_workflow_orchestrator.trigger_incident_workflow(inc_dict, ai_res)
             n8n_client.dispatch_critical_incident(inc_dict, ai_res)
 
@@ -284,7 +321,8 @@ class DemoController:
         elif scenario_key == "scenario_4_unknown_hazard":
             inc_dict = {
                 "incident_id": f"INC-UNKNOWN-CLIMB-{int(time.time())}",
-                "worker_id": "W-059 (Material Handler)",
+                "worker_id": "W-059",
+                "worker_name": "Tanya Ward",
                 "machine_id": "CARGO_PALLET_STACK_04",
                 "machine_type": "elevated_storage",
                 "distance_m": 0.0,
@@ -297,10 +335,12 @@ class DemoController:
                 "closing_velocity_m_s": 0.0,
                 "local_alert_triggered": True
             }
-            local_queue.persist_incident(inc_dict)
 
             # Trigger AI Multi-Agent reasoning
             ai_res = ai_safety_agent.process_incident(inc_dict)
+            inc_dict["ai_analysis"] = ai_res
+            inc_dict["knowledge_cited"] = "OSHA 1910.28 — Duty to Have Fall Protection Systems"
+            local_queue.persist_incident(inc_dict)
 
             # Ensure pending rule is surfaced
             suggested_rule = {

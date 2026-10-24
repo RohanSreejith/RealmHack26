@@ -992,26 +992,101 @@
       document.getElementById('incidentCountLabel').textContent = `${list.length} Records in PostgreSQL`;
     }
 
-    // Worker & Equipment Registry mapping
+    // Worker & Personnel Registry mapping
     const WORKER_REGISTRY = {
       "W-001": "Marcus Vance (Forklift Operator)",
+      "W-002": "Sarah Jenkins (Safety Compliance)",
       "W-006": "Alex Rivera (Cargo Staging)",
       "W-008": "Kenji Sato (Material Handling)",
       "W-017": "Elena Rostova (Warehouse Logistics)",
+      "W-022": "Liam O'Connor (Maintenance Tech)",
+      "W-030": "James Thorne (Inventory Specialist)",
+      "W-035": "Maya Lin (Quality Inspector)",
       "W-042": "David Kim (Dock Logistics)",
-      "W-103": "Sarah Jenkins (Safety Compliance)"
+      "W-055": "Carlos Mendez (Shipping & Receiving)",
+      "W-059": "Tanya Ward (Material Handler)",
+      "W-103": "Sarah Jenkins (Safety Compliance)",
+      "OPERATOR_F04": "Marcus Vance (Forklift Operator)",
+      "ALL_PERSONNEL": "All Facility Personnel"
     };
+
+    function resolveWorkerDisplay(workerId, rawName) {
+      if (rawName && rawName.trim() && !rawName.startsWith("W-") && rawName !== "null" && rawName !== "undefined") {
+        return rawName.includes("(") ? rawName : `${rawName} (${workerId || 'Emp'})`;
+      }
+      if (workerId && WORKER_REGISTRY[workerId]) {
+        return WORKER_REGISTRY[workerId];
+      }
+      if (!workerId || workerId === 'ALL_PERSONNEL') {
+        return "All Facility Personnel";
+      }
+      const pool = [
+        "Marcus Vance (Forklift Operator)",
+        "Alex Rivera (Cargo Staging)",
+        "Elena Rostova (Warehouse Logistics)",
+        "James Thorne (Inventory Specialist)",
+        "David Kim (Dock Logistics)",
+        "Kenji Sato (Material Handling)",
+        "Maya Lin (Quality Inspector)",
+        "Carlos Mendez (Shipping & Receiving)"
+      ];
+      const digits = (workerId || '').replace(/\D/g, '');
+      const idx = digits ? parseInt(digits, 10) : 0;
+      const base = pool[idx % pool.length];
+      return `${base.split(' (')[0]} (${workerId})`;
+    }
+
+    function renderIncidentsList(list) {
+      const container = document.getElementById('incidentsContainer');
+      if (!container) return;
+
+      container.innerHTML = list.map(inc => {
+        const workerDisplayName = resolveWorkerDisplay(inc.worker_id, inc.worker_name);
+        let summary = inc.ai_summary;
+        if (!summary && inc.ai_analysis) {
+          summary = typeof inc.ai_analysis === 'string' ? inc.ai_analysis : (inc.ai_analysis.reason || inc.ai_analysis.predicted_outcome);
+        }
+        if (!summary) {
+          summary = `Safety proximity threshold triggered in ${inc.zone || 'Zone 01'}. Fast-path siren engaged.`;
+        }
+        const knowledgeTag = inc.knowledge_cited || (
+          inc.incident_id.includes('PPE') ? 'OSHA 1926.100' :
+          inc.incident_id.includes('FIRE') ? 'NFPA 101 / OSHA 1910.38' :
+          inc.incident_id.includes('COLLISION') ? 'OSHA 1910.176' : 'OSHA 1910.178'
+        );
+
+        return `
+        <div class="incident-card" onclick="openIncidentModal('${inc.incident_id}')" title="Click to inspect AI analysis & video clip">
+          <div class="incident-card-top">
+            <span class="inc-code-tag">${inc.incident_id} • ${inc.zone}</span>
+            <span class="inc-badge-sev sev-${inc.risk_level || 'CRITICAL'}">${inc.risk_level} (${inc.distance_m ? inc.distance_m.toFixed(1) + 'm' : 'HAZARD'})</span>
+          </div>
+          <div class="incident-card-summary">
+            <strong style="color:var(--text-primary);">${workerDisplayName}:</strong> ${summary.slice(0, 110)}...
+          </div>
+          <div class="incident-card-footer">
+            <span>${knowledgeTag}</span>
+            <span>Fast-Path: FIRED (&lt;5ms)</span>
+            <span class="click-inspect-label">Inspect Details &rarr;</span>
+          </div>
+        </div>
+        `;
+      }).join('');
+
+      document.getElementById('incidentCountLabel').textContent = `${list.length} Records in PostgreSQL`;
+    }
 
     // Modal Inspection Function
     window.openIncidentModal = function(incidentId) {
-      const inc = currentIncidents.find(i => i.incident_id === incidentId) || BASELINE_INCIDENTS[0];
+      const inc = currentIncidents.find(i => i.incident_id === incidentId) || BASELINE_INCIDENTS.find(i => i.incident_id === incidentId) || currentIncidents[0] || BASELINE_INCIDENTS[0];
       if (!inc) return;
 
       const incId = (inc.incident_id || '').toUpperCase();
       const machType = (inc.machine_type || '').toLowerCase();
+      const machId = inc.machine_id || 'F-004';
       const zoneStr = (inc.zone || '').toLowerCase();
       const workerId = inc.worker_id || 'W-001';
-      const workerName = WORKER_REGISTRY[workerId] || inc.worker_name || `${workerId} (Floor Specialist)`;
+      const workerName = resolveWorkerDisplay(workerId, inc.worker_name);
 
       document.getElementById('modalIncId').textContent = inc.incident_id;
       const badge = document.getElementById('modalSeverityBadge');
@@ -1020,68 +1095,85 @@
 
       document.getElementById('modalZone').textContent = inc.zone || 'ZONE_01';
       document.getElementById('modalWorker').textContent = workerName;
-      document.getElementById('modalMachine').textContent = `${inc.machine_type || 'Forklift'} (${inc.machine_id || 'F-004'})`;
+      document.getElementById('modalMachine').textContent = `${inc.machine_type || 'Forklift'} (${machId})`;
 
       const distStr = inc.distance_m ? `${inc.distance_m.toFixed(1)}m` : '2.1m';
       const ttcStr = inc.ttc_seconds ? `(TTC ${inc.ttc_seconds.toFixed(1)}s)` : '(TTC 1.8s)';
       document.getElementById('modalDistance').textContent = `${distStr} ${ttcStr}`;
 
       const videoEl = document.getElementById('modalVideoPlayer');
-      let analysisText = inc.ai_analysis;
-      let oshaTitle = inc.knowledge_cited;
+      let analysisText = "";
+      if (typeof inc.ai_analysis === 'string') {
+        analysisText = inc.ai_analysis;
+      } else if (inc.ai_analysis && typeof inc.ai_analysis === 'object') {
+        analysisText = inc.ai_analysis.reason || inc.ai_analysis.predicted_outcome || "";
+      }
+
+      let oshaTitle = typeof inc.knowledge_cited === 'string' ? inc.knowledge_cited : "";
       let oshaDetails = "";
+      let videoSrc = "";
 
       // Dynamic Classification based on real incident signature
-      if (incId.includes('PPE') || incId.includes('HELMET') || machType.includes('material_handling')) {
-        videoEl.src = '/videos/videos/box_pickup-rgb-00000/008caa590c5e5b7b4bca_run_8_seed_4731920.cam_00.rgb.mp4';
+      if (incId.includes('PPE') || incId.includes('HELMET') || machType.includes('material_handling') || machType.includes('stationary')) {
+        videoSrc = '/videos/worker_no_helmet.mp4';
         oshaTitle = 'OSHA 1926.100(a) — Mandatory Head Protection & Personal Safety';
         oshaDetails = 'Employees working in areas where there is a possible danger of head injury from impact or falling objects shall be protected by protective helmets. Worker detected handling cargo containers in active transit aisle without mandatory hard hat.';
         if (!analysisText || analysisText.includes('Forklift F-004')) {
           analysisText = `Dual-camera Swarm nodes detected worker ${workerName} actively handling heavy storage containers in Zone 01 without required hard hat PPE. Visual tracking confirmed non-compliance for >3 seconds. Instant acoustic chime fired locally (<5ms) to enforce safety equipment wear.`;
         }
       } else if (incId.includes('FIRE') || machType.includes('thermal')) {
-        videoEl.src = '/videos/videos/fire-rgb-00000/00023b5323028ab83e67_run_6_seed_1486583949.ceiling_00.rgb.mp4';
-        oshaTitle = 'OSHA 1910.38 — Emergency Action Plans & Thermal Evacuation Protocol';
+        videoSrc = '/videos/videos/fire-rgb-00000/00023b5323028ab83e67_run_6_seed_1486583949.ceiling_00.rgb.mp4';
+        oshaTitle = 'NFPA 101 / OSHA 1910.38 — Emergency Action Plans & Thermal Evacuation Protocol';
         oshaDetails = 'Thermal optical signature and localized open flame detected at ceiling level. Swarm broadcasted immediate facility evacuation command and illuminated emergency egress pathways.';
         if (!analysisText || analysisText.includes('Forklift F-004')) {
           analysisText = `Ceiling optical sensor identified active flame signature and smoke plume near racking overhead. Swarm coordinator initiated immediate acoustic alarm and dispatched suppression directives.`;
         }
       } else if (incId.includes('COLLISION') || incId.includes('RACK')) {
-        videoEl.src = '/videos/videos/forklift_collision-rgb-00000/0021d0743dc26041d97b_run_5_seed_574698367.cam_00.rgb.mp4';
+        videoSrc = '/videos/videos/forklift_collision-rgb-00000/0021d0743dc26041d97b_run_5_seed_574698367.cam_00.rgb.mp4';
         oshaTitle = 'OSHA 1910.176(b) — Secure Material & Structural Storage Rack Integrity';
         oshaDetails = 'Storage of material shall not create a hazard. Forklift impact with storage rack upright post threatens racking structural integrity and pallet collapse.';
         if (!analysisText || analysisText.includes('Forklift F-004')) {
-          analysisText = `Forklift operating in aisle struck storage racking upright post at 2.4 m/s. Edge accelerometer and video tracking registered sudden deceleration and structural deflection. Immediate rack inspection required.`;
+          analysisText = `Forklift ${machId} operating in aisle struck storage racking upright post at 2.4 m/s. Edge accelerometer and video tracking registered sudden deceleration and structural deflection. Immediate rack inspection required.`;
         }
-      } else if (incId.includes('BOXES') || incId.includes('UNKNOWN')) {
-        videoEl.src = '/videos/videos/worker_on_boxes-rgb-00000/004c865fae3489fe83d1_run_4_seed_84136611.cam_00.rgb.mp4';
+      } else if (incId.includes('BOXES') || incId.includes('CLIMB') || incId.includes('UNKNOWN')) {
+        videoSrc = '/videos/videos/worker_on_boxes-rgb-00000/004c865fae3489fe83d1_run_4_seed_84136611.cam_00.rgb.mp4';
         oshaTitle = 'OSHA 1910.28 — Duty to Have Fall Protection Systems';
         oshaDetails = 'Employers must provide fall protection for employees on unprotected walking-working surfaces 4 feet or more above lower levels. Worker climbed onto unstable stacked boxes.';
         if (!analysisText || analysisText.includes('Forklift F-004')) {
           analysisText = `Worker ${workerName} observed standing on stacked wooden crates at elevation >1.5m without certified ladder or fall arrest. Severe fall hazard flagged by vision model; local verbal warning broadcast.`;
         }
       } else if (incId.includes('TRUCK') || zoneStr.includes('loading') || machType.includes('truck')) {
-        videoEl.src = '/videos/loading_zone_truck.mp4';
+        videoSrc = '/videos/loading_zone_truck.mp4';
         oshaTitle = 'OSHA 1910.178(m) — Commercial Vehicle Backing & Pedestrian Clear Zone';
         oshaDetails = 'Brakes shall be set and wheel blocks in place. Pedestrians shall maintain minimum 4-meter clearance during commercial transport vehicle backing.';
         if (!analysisText || analysisText.includes('Forklift F-004')) {
-          analysisText = `Heavy transport vehicle reversing toward loading bay dock while worker was crossing blind loading apron. High-decibel horn engaged in 3.1ms.`;
+          analysisText = `Heavy transport vehicle ${machId} reversing toward loading bay dock while worker ${workerName} was crossing blind loading apron. High-decibel horn engaged in 3.1ms.`;
+        }
+      } else if (zoneStr.includes('zone_02') || zoneStr.includes('inside')) {
+        videoSrc = '/videos/worker_at_entrance_inside.mp4';
+        oshaTitle = 'OSHA 1910.178(n) — Powered Industrial Trucks: Speed & Door Clearance';
+        oshaDetails = 'The driver shall be required to slow down and sound the horn at cross aisles and other locations where vision is obstructed.';
+        if (!analysisText || analysisText.includes('Forklift F-004')) {
+          analysisText = `Worker ${workerName} present in secondary interior doorway as industrial equipment entered approach buffer. Secondary swarm sensor confirmed evasive step.`;
         }
       } else {
         // Entrance Forklift scenario
-        videoEl.src = '/videos/forklift_approaching_entrance.mp4';
+        videoSrc = '/videos/forklift_approaching_entrance.mp4';
         oshaTitle = 'OSHA 1910.178(l) — Powered Industrial Trucks: Blind Intersections';
         oshaDetails = 'Operators shall slow down and sound the horn at cross aisles and other locations where vision is obstructed. Approach speed exceeded safe threshold.';
         if (!analysisText) {
-          analysisText = `Forklift F-004 rapid convergence with worker ${workerName} at entrance threshold. Visual tracking detected blind-spot obstruction with high approach speed (3.2 m/s). Instant local siren fired in 3.4ms.`;
+          analysisText = `Forklift ${machId} rapid convergence with worker ${workerName} at entrance threshold. Visual tracking detected blind-spot obstruction with high approach speed (3.2 m/s). Instant local siren fired in 3.4ms.`;
         }
       }
+
+      videoEl.src = videoSrc;
+      videoEl.load();
+      videoEl.play().catch(() => {});
 
       document.getElementById('modalAnalysisText').textContent = analysisText;
       document.getElementById('modalOshaStandard').textContent = oshaTitle;
       document.getElementById('modalOshaDetails').textContent = oshaDetails;
 
-      videoEl.play().catch(() => {});
       document.getElementById('incidentModalBackdrop').classList.add('open');
     };
 
