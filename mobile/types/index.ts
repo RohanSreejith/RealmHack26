@@ -78,6 +78,8 @@ export interface Incident {
   machineType: MachineType;
   machineName: string;
   evidenceImageUrl?: string;
+  clipUrl?: string;
+  clip_url?: string;
   deterministicTrigger: DeterministicTrigger;
   aiRiskAnalysis: AIRiskAnalysis;
   acknowledgedBy?: string;

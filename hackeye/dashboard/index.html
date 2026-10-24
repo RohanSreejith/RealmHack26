@@ -144,6 +144,9 @@
       <button class="scenario-pill agent-btn" id="openAgentGraphBtn" title="View AI Multi-Agent Intelligence Graph">
         🧠 6-Agent Graph
       </button>
+      <button class="scenario-pill render-btn" id="openRenderWorkflowBtn" style="background:#EEF2FF; color:#4338CA; border:1px solid #C7D2FE; font-weight:700;" title="Inspect Asynchronous Render Cloud Workflows">
+        ☁️ Render Workflows (9-Step)
+      </button>
       <button class="scenario-pill cloud-btn" id="cloudToggleBtn">
         Disconnect Cloud
       </button>
@@ -859,6 +862,77 @@
 
       <div class="modal-footer">
         <button class="modal-dismiss-btn" id="agentModalDismissBtn">Close Architecture</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Observable Render Workflow Engine Modal (9-Step Incident Pipeline) -->
+  <div class="modal-overlay" id="renderWorkflowModal">
+    <div class="modal-box" style="max-width: 720px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="modal-badge-red" style="background:#4338CA;">RENDER CLOUD ASYNC WORKFLOW</span>
+          <h2 class="modal-headline">Render Asynchronous Incident Pipeline (9 Stages)</h2>
+        </div>
+        <button class="modal-close-btn" id="renderWorkflowModalCloseBtn">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Render Infrastructure Topology -->
+        <div style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:12px; padding:12px; margin-bottom:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#10B981; box-shadow:0 0 6px #10B981;"></span>
+              <strong style="font-size:12px; color:#1E293B;">DEPLOYED SERVICES (RENDER BLUEPRINT):</strong>
+            </div>
+            <span style="font-size:11px; background:#EEF2FF; color:#4338CA; font-weight:700; padding:2px 8px; border-radius:4px; border:1px solid #C7D2FE;">Oregon (US-West)</span>
+          </div>
+
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:8px; font-size:11px;">
+            <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-radius:8px; padding:8px;">
+              <span style="color:#64748B; display:block;">Web Service:</span>
+              <strong style="color:#1E3A8A;">hackeye-cloud-platform</strong>
+            </div>
+            <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-radius:8px; padding:8px;">
+              <span style="color:#64748B; display:block;">Background Worker:</span>
+              <strong style="color:#4338CA;">hackeye-workflow-worker</strong>
+            </div>
+            <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-radius:8px; padding:8px;">
+              <span style="color:#64748B; display:block;">Managed Database:</span>
+              <strong style="color:#059669;">hackeye-postgres</strong>
+            </div>
+          </div>
+
+          <!-- Architecture Separation Banner -->
+          <div style="margin-top:10px; background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; padding:8px 12px; font-size:11px; display:flex; justify-content:space-between; align-items:center;">
+            <span style="color:#991B1B;"><strong>⚡ Edge Local Fast Path:</strong> &lt; 5ms (Acoustic Siren fired 100% offline)</span>
+            <span style="color:#1E40AF;"><strong>☁️ Render Asynchronous Path:</strong> ~770ms (Deep AI Reasoning)</span>
+          </div>
+        </div>
+
+        <!-- Live Workflow Execution Header -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <div>
+            <span style="font-size:11px; color:#64748B; font-weight:600;">ACTIVE EXECUTION:</span>
+            <strong id="renderWfId" style="font-size:14px; color:#1E3A8A; font-family:monospace; margin-left:6px;">RND-WF-8001</strong>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span id="renderWfStatus" style="font-size:11px; background:#ECFDF5; color:#059669; font-weight:800; padding:3px 10px; border-radius:20px; border:1px solid #A7F3D0;">COMPLETED</span>
+            <span id="renderWfProgress" style="font-size:11px; color:#64748B; font-weight:700;">100%</span>
+          </div>
+        </div>
+
+        <!-- 9 Observable Steps List -->
+        <div id="renderWorkflowStepsList" style="display:flex; flex-direction:column; gap:8px;">
+          <!-- Dynamically populated from /api/workflows/latest -->
+        </div>
+      </div>
+
+      <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center;">
+        <button class="scenario-pill" id="triggerWorkflowBtn" style="background:#2563EB; color:#FFFFFF; border:none; padding:8px 16px; border-radius:8px; font-weight:700; cursor:pointer;">
+          ⚡ Trigger New Incident Workflow
+        </button>
+        <button class="modal-dismiss-btn" id="renderWorkflowModalDismissBtn">Close</button>
       </div>
     </div>
   </div>

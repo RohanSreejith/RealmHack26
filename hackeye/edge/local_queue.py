@@ -47,6 +47,20 @@ class LocalEdgeQueue:
                 db.add(queue_entry)
 
             db.commit()
+
+            # Forward to live Render Cloud if RENDER_API_URL is configured
+            from hackeye.backend.config import settings
+            if self.is_cloud_connected and settings.RENDER_API_URL:
+                import threading
+                import httpx
+                def _post_to_render():
+                    try:
+                        cloud_endpoint = f"{settings.RENDER_API_URL.rstrip('/')}/api/incidents"
+                        httpx.post(cloud_endpoint, json=incident_dict, timeout=5.0)
+                    except Exception as e:
+                        print(f"[Render Cloud Sync] Failed to dispatch to Render: {e}")
+                threading.Thread(target=_post_to_render, daemon=True).start()
+
             return inc.incident_id
         finally:
             db.close()
@@ -59,14 +73,20 @@ class LocalEdgeQueue:
             db.close()
 
     def sync_to_cloud(self) -> int:
-        """Simulates or performs flush of pending edge items when connection restores."""
+        """Flushes pending edge items to Render Cloud when connection restores."""
+        from hackeye.backend.config import settings
         db: Session = SessionLocal()
         try:
             pending = db.query(SyncQueue).filter(SyncQueue.synced == False).all()
             count = len(pending)
+            import httpx
             for item in pending:
                 item.synced = True
-                # Update incident record sync_status as well
+                if settings.RENDER_API_URL:
+                    try:
+                        httpx.post(f"{settings.RENDER_API_URL.rstrip('/')}/api/incidents", json=item.payload, timeout=5.0)
+                    except Exception:
+                        pass
                 if item.entity_type == "incident":
                     inc_id = item.payload.get("incident_id")
                     if inc_id:

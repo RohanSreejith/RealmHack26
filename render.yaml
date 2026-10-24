@@ -1,0 +1,56 @@
+# Render Blueprint Specification for Hack-Eye
+# Target: Best Use of Render Prize
+# Architecture: Edge-First Industrial Safety Intelligence + Render Cloud Asynchronous Incident Workflows
+
+services:
+  # 1. Hack-Eye Central Cloud API & Operations Dashboard Web Service
+  - type: web
+    name: hackeye-cloud-platform
+    env: python
+    region: oregon
+    plan: standard
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn hackeye.backend.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: hackeye-postgres
+          property: connectionString
+      - key: ADAPTION_API_KEY
+        sync: false
+      - key: FIRECRAWL_API_KEY
+        sync: false
+      - key: N8N_WEBHOOK_URL
+        sync: false
+      - key: RENDER_SERVICE_TYPE
+        value: "WEB_API"
+
+  # 2. Render Incident Background Worker (Executes Asynchronous 9-Step Incident Workflows)
+  - type: worker
+    name: hackeye-workflow-worker
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python -m hackeye.render.workflow_engine"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: hackeye-postgres
+          property: connectionString
+      - key: ADAPTION_API_KEY
+        sync: false
+      - key: FIRECRAWL_API_KEY
+        sync: false
+      - key: RENDER_SERVICE_TYPE
+        value: "BACKGROUND_WORKER"
+
+databases:
+  # 3. Render Managed PostgreSQL Database (Persistent Cloud Incident & Audit Store)
+  - name: hackeye-postgres
+    region: oregon
+    plan: starter
+    databaseName: hackeye
+    user: hackeye_admin

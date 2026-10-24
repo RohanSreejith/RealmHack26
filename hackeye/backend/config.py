@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     
     RENDER_API_KEY: str = os.getenv("RENDER_API_KEY", "")
     RENDER_SERVICE_ID: str = os.getenv("RENDER_SERVICE_ID", "")
+    RENDER_API_URL: str = os.getenv("RENDER_API_URL", "")
     
     # Database Settings (Local SQLite by default, Postgres on Render)
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///hackeye_edge.db")

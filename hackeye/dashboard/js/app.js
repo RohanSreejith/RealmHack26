@@ -552,8 +552,113 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  // --- 13. Render Asynchronous Workflows Modal & Live Visualizer ---
+  const renderWorkflowModal = document.getElementById("renderWorkflowModal");
+  const openRenderWorkflowBtn = document.getElementById("openRenderWorkflowBtn");
+  const renderWorkflowModalCloseBtn = document.getElementById("renderWorkflowModalCloseBtn");
+  const renderWorkflowModalDismissBtn = document.getElementById("renderWorkflowModalDismissBtn");
+  const triggerWorkflowBtn = document.getElementById("triggerWorkflowBtn");
+  const renderWfId = document.getElementById("renderWfId");
+  const renderWfStatus = document.getElementById("renderWfStatus");
+  const renderWfProgress = document.getElementById("renderWfProgress");
+  const renderWorkflowStepsList = document.getElementById("renderWorkflowStepsList");
+
+  let renderPollingInterval = null;
+
+  const openRenderWorkflow = () => {
+    fetchLatestWorkflow();
+    if (renderWorkflowModal) renderWorkflowModal.classList.add("active");
+    if (!renderPollingInterval) {
+      renderPollingInterval = setInterval(fetchLatestWorkflow, 1000);
+    }
+  };
+
+  const closeRenderWorkflow = () => {
+    if (renderWorkflowModal) renderWorkflowModal.classList.remove("active");
+    if (renderPollingInterval) {
+      clearInterval(renderPollingInterval);
+      renderPollingInterval = null;
+    }
+  };
+
+  if (openRenderWorkflowBtn) openRenderWorkflowBtn.addEventListener("click", openRenderWorkflow);
+  if (renderWorkflowModalCloseBtn) renderWorkflowModalCloseBtn.addEventListener("click", closeRenderWorkflow);
+  if (renderWorkflowModalDismissBtn) renderWorkflowModalDismissBtn.addEventListener("click", closeRenderWorkflow);
+
+  if (triggerWorkflowBtn) {
+    triggerWorkflowBtn.addEventListener("click", async () => {
+      triggerWorkflowBtn.disabled = true;
+      triggerWorkflowBtn.textContent = "⏳ Launching Workflow...";
+      try {
+        await fetch("/api/incidents/simulate", { method: "POST" });
+        await fetchLatestWorkflow();
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setTimeout(() => {
+          triggerWorkflowBtn.disabled = false;
+          triggerWorkflowBtn.textContent = "⚡ Trigger New Incident Workflow";
+        }, 1000);
+      }
+    });
+  }
+
+  async function fetchLatestWorkflow() {
+    try {
+      const res = await fetch("/api/workflows/latest");
+      if (!res.ok) return;
+      const wf = await res.json();
+      if (!wf || wf.status === "idle") return;
+
+      if (renderWfId) renderWfId.textContent = wf.workflow_id;
+      if (renderWfStatus) {
+        renderWfStatus.textContent = wf.status;
+        renderWfStatus.style.background = wf.status === "COMPLETED" ? "#ECFDF5" : "#EFF6FF";
+        renderWfStatus.style.color = wf.status === "COMPLETED" ? "#059669" : "#1D4ED8";
+        renderWfStatus.style.borderColor = wf.status === "COMPLETED" ? "#A7F3D0" : "#BFDBFE";
+      }
+      if (renderWfProgress) renderWfProgress.textContent = `${wf.progress_pct || 0}%`;
+
+      if (renderWorkflowStepsList && Array.isArray(wf.steps)) {
+        renderWorkflowStepsList.innerHTML = wf.steps.map(s => {
+          const isDone = s.status === "COMPLETED";
+          const isRunning = s.status === "RUNNING";
+          const statusBg = isDone ? "#ECFDF5" : (isRunning ? "#EFF6FF" : "#F8FAFC");
+          const statusColor = isDone ? "#059669" : (isRunning ? "#2563EB" : "#94A3B8");
+          const statusIcon = isDone ? "✓" : (isRunning ? "⟳" : "○");
+
+          const artifactPreview = s.artifacts ? Object.entries(s.artifacts).map(([k, v]) => {
+            const valStr = typeof v === 'object' ? JSON.stringify(v) : v;
+            return `<span style="display:inline-block; margin-right:8px; font-size:10px; color:#475569;"><strong>${k}:</strong> ${valStr}</span>`;
+          }).join("") : "";
+
+          return `
+            <div style="background:${statusBg}; border:1px solid ${isDone ? '#A7F3D0' : (isRunning ? '#BFDBFE' : '#E2E8F0')}; border-radius:8px; padding:10px 12px; display:flex; flex-direction:column; gap:4px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; background:${isDone ? '#10B981' : (isRunning ? '#2563EB' : '#CBD5E1')}; color:#FFFFFF; font-size:11px; font-weight:800;">
+                    ${statusIcon}
+                  </span>
+                  <strong style="font-size:12px; color:#1E293B;">${s.name}</strong>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:10px; font-family:monospace; color:#64748B;">${s.latency_ms > 0 ? s.latency_ms + 'ms' : (isRunning ? 'executing...' : 'queued')}</span>
+                  <span style="font-size:10px; font-weight:700; color:${statusColor}; text-transform:uppercase;">${s.status}</span>
+                </div>
+              </div>
+              ${artifactPreview ? `<div style="margin-left:28px; padding-top:4px; border-top:1px dashed #E2E8F0;">${artifactPreview}</div>` : ''}
+            </div>
+          `;
+        }).join("");
+      }
+    } catch (e) {
+      console.error("Failed to fetch latest workflow:", e);
+    }
+  }
+
   // Initial fetch of pending rules count
   fetchPendingRules();
+  fetchLatestWorkflow();
 
   // Load initial scenario 1 on startup
   fetch("/api/demo/scenario/scenario_1_entrance", { method: "POST" })

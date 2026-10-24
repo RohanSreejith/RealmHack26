@@ -132,50 +132,62 @@ class ApiService {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
             // Map backend incidents to rich Incident interface
-            return data.map((item: any, idx: number) => ({
-              id: item.incident_id || `inc-${idx}`,
-              incidentCode: item.incident_id?.replace("INC-", "HX-") || `HX-${1042 - idx}`,
-              title: item.machine_type ? `${item.machine_type.toUpperCase()} Proximity Breach` : "Safety Hazard",
-              zone: item.zone || "Excavation Zone",
-              zoneId: "zone-excavation",
-              cameraId: "CAM-03",
-              cameraName: "Overhead Safety Cam",
-              timestamp: item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : "14:32:18",
-              durationSeconds: item.ttc_seconds ? Number(item.ttc_seconds) * 1.5 : 2.4,
-              riskLevel: item.risk_level || "CRITICAL",
-              status: item.status || "ACTIVE",
-              workerId: item.worker_id || "W-104",
-              workerName: "Marcus Vance",
-              machineId: item.machine_id || "EX-02",
-              machineType: item.machine_type || "excavator",
-              machineName: "CAT 320 Hydraulic Excavator",
-              deterministicTrigger: {
-                workerDetected: true,
-                machineDetected: true,
-                machineActive: true,
-                hazardZoneBreached: true,
-                distanceMeters: item.distance_m || 2.1,
-                thresholdMeters: 3.5,
-                ttcSeconds: item.ttc_seconds || 1.4,
-                triggerHeadline: "Immediate proximity breach detected by edge safety rule.",
-                evaluationLatencyMs: 24
-              },
-              aiRiskAnalysis: {
+            return data.map((item: any, idx: number) => {
+              const rawClip = item.clip_url || item.clipUrl;
+              const fullClipUrl = rawClip 
+                ? (rawClip.startsWith('http') ? rawClip : `${API_BASE_URL}${rawClip}`)
+                : `${API_BASE_URL}/videos/forklift_approaching_entrance.mp4`;
+
+              return {
+                id: item.incident_id || `inc-${idx}`,
+                incidentCode: item.incident_id?.replace("INC-", "HX-") || `HX-${1042 - idx}`,
+                title: item.title || (item.machine_type ? `${item.machine_type.toUpperCase()} Proximity Breach` : "Safety Hazard"),
+                zone: item.zone || "Zone 01 (Bay Entrance)",
+                zoneId: "zone-01",
+                cameraId: "CAM-01",
+                cameraName: "Loading Bay Safety Cam",
+                timestamp: item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : "14:32:18",
+                durationSeconds: item.ttc_seconds ? Number(item.ttc_seconds) * 1.5 : 2.4,
                 riskLevel: item.risk_level || "CRITICAL",
-                confidence: 0.94,
-                summary: item.ai_summary || "Worker entered machine operating perimeter while hydraulics active.",
-                contributingFactors: ["Blind angle", "High noise", "Trajectory intersection"],
-                recommendedAction: "Stop machine operation and move worker outside safety zone.",
-                applicableRules: ["OSHA 1926.601", "OSHA 1910.178"],
-                safetyReference: {
-                  title: "Excavator Operating-Zone Guidance",
-                  code: "OSHA 29 CFR 1926.601",
-                  source: "Safety Knowledge Base (Firecrawl)",
-                  guidance: "Maintain 3m perimeter buffer around rotating heavy equipment."
+                status: item.status || "ACTIVE",
+                workerId: item.worker_id || "W-017",
+                workerName: item.worker_id === "W-104" ? "Marcus Vance" : "Elena Rostova",
+                machineId: item.machine_id || "F-004",
+                machineType: item.machine_type || "forklift",
+                machineName: item.machine_type === "excavator" ? "CAT 320 Hydraulic Excavator" : "Toyota Electric Forklift",
+                clipUrl: fullClipUrl,
+                deterministicTrigger: {
+                  workerDetected: true,
+                  machineDetected: true,
+                  machineActive: true,
+                  hazardZoneBreached: true,
+                  distanceMeters: item.distance_m || 1.8,
+                  thresholdMeters: 3.5,
+                  ttcSeconds: item.ttc_seconds || 1.4,
+                  triggerHeadline: "Immediate proximity breach detected by edge deterministic safety engine.",
+                  evaluationLatencyMs: 4
                 },
-                latencySeconds: 1.8
-              }
-            }));
+                aiRiskAnalysis: {
+                  riskLevel: item.risk_level || "CRITICAL",
+                  confidence: 0.95,
+                  summary: item.ai_summary || `Worker ${item.worker_id || 'W-017'} in close proximity (${item.distance_m || 1.8}m) to moving machinery.`,
+                  contributingFactors: [
+                    `Clearance distance (${item.distance_m || 1.8}m) below 3.5m exclusion zone`,
+                    `TTC margin of ${item.ttc_seconds || 1.4}s provides minimal emergency reaction time`,
+                    "Visual obstruction at high-traffic entrance threshold"
+                  ],
+                  recommendedAction: "Acoustic strobe beacon activated. Verify machinery clearance and maintain pedestrian lane.",
+                  applicableRules: ["OSHA 1910.178(n)(4) - Powered Industrial Trucks", "OSHA 1926.601"],
+                  safetyReference: {
+                    title: "Industrial Truck Pedestrian Separation",
+                    code: "OSHA Standard 29 CFR 1910.178(n)(4)",
+                    source: "Safety Knowledge Base (Firecrawl Ingestion)",
+                    guidance: "Operators must maintain safe clearance from pedestrian paths and sound horn at all obstructed corners."
+                  },
+                  latencySeconds: 1.4
+                }
+              };
+            });
           }
         }
       } catch {}
@@ -277,6 +289,124 @@ class ApiService {
     await AsyncStorage.removeItem(STORAGE_KEYS.INCIDENTS);
     await AsyncStorage.removeItem(STORAGE_KEYS.SITE_OVERVIEW);
     await AsyncStorage.removeItem(STORAGE_KEYS.ZONES);
+  }
+
+  public async simulateIncident(): Promise<Incident | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/incidents/simulate`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.incident) {
+          const item = data.incident;
+          const rawClip = item.clip_url || item.clipUrl;
+          const fullClipUrl = rawClip 
+            ? (rawClip.startsWith('http') ? rawClip : `${API_BASE_URL}${rawClip}`)
+            : `${API_BASE_URL}/videos/forklift_approaching_entrance.mp4`;
+
+          const mapped: Incident = {
+            id: item.incident_id,
+            incidentCode: item.incident_id?.replace("INC-", "HX-"),
+            title: item.title || "Critical Breach: Forklift Entrance",
+            zone: item.zone || "Zone 01 (Bay Entrance)",
+            zoneId: "zone-01",
+            cameraId: "CAM-01",
+            cameraName: "Loading Bay Safety Cam",
+            timestamp: new Date().toLocaleTimeString(),
+            durationSeconds: 2.1,
+            riskLevel: (item.risk_level as any) || "CRITICAL",
+            status: "ACTIVE",
+            workerId: item.worker_id || "W-017",
+            workerName: "Elena Rostova",
+            machineId: item.machine_id || "F-004",
+            machineType: "forklift",
+            machineName: "Toyota Electric Forklift",
+            clipUrl: fullClipUrl,
+            deterministicTrigger: {
+              workerDetected: true,
+              machineDetected: true,
+              machineActive: true,
+              hazardZoneBreached: true,
+              distanceMeters: item.distance_m || 1.8,
+              thresholdMeters: 3.5,
+              ttcSeconds: item.ttc_seconds || 1.4,
+              triggerHeadline: "Immediate proximity breach detected by edge deterministic safety engine.",
+              evaluationLatencyMs: 4
+            },
+            aiRiskAnalysis: {
+              riskLevel: "CRITICAL",
+              confidence: 0.96,
+              summary: item.ai_analysis?.reason || "Rapid trajectory convergence between worker and machine in entrance threshold.",
+              contributingFactors: item.ai_analysis?.contributing_factors || [
+                "TTC estimated at 1.4s (< 2.0s threshold)",
+                "Distance 1.8m in blind corner doorway",
+                "Forklift traveling without sounding horn"
+              ],
+              recommendedAction: item.ai_analysis?.recommended_actions?.[0] || "Acoustic strobe beacon sounded. Halt machine.",
+              applicableRules: ["OSHA 1910.178(n)(4) - Blind Intersections & Cross Aisles"],
+              safetyReference: {
+                title: "Powered Industrial Trucks - Speed and Blind Spots",
+                code: "OSHA 1910.178(n)(4)",
+                source: "Safety Knowledge Base (Firecrawl Ingestion)",
+                guidance: item.ai_analysis?.knowledge_used || "Slow down and sound horn at cross aisles and obstructed views."
+              },
+              latencySeconds: 1.4
+            }
+          };
+          return mapped;
+        }
+      }
+    } catch {}
+
+    // Fallback simulation if offline
+    return {
+      id: `sim-${Date.now()}`,
+      incidentCode: `HX-${Math.floor(1000 + Math.random() * 9000)}`,
+      title: "Critical Breach: Machine Proximity Incursion",
+      zone: "Zone 01 (Bay Entrance)",
+      zoneId: "zone-01",
+      cameraId: "CAM-01",
+      cameraName: "Dock Entrance Cam",
+      timestamp: new Date().toLocaleTimeString(),
+      durationSeconds: 2.4,
+      riskLevel: "CRITICAL",
+      status: "ACTIVE",
+      workerId: "W-017",
+      workerName: "Elena Rostova",
+      machineId: "F-004",
+      machineType: "forklift",
+      machineName: "Toyota Electric Forklift",
+      clipUrl: `${API_BASE_URL}/videos/forklift_approaching_entrance.mp4`,
+      deterministicTrigger: {
+        workerDetected: true,
+        machineDetected: true,
+        machineActive: true,
+        hazardZoneBreached: true,
+        distanceMeters: 1.8,
+        thresholdMeters: 3.5,
+        ttcSeconds: 1.4,
+        triggerHeadline: "Worker-machine trajectory convergence within blind doorway threshold.",
+        evaluationLatencyMs: 4
+      },
+      aiRiskAnalysis: {
+        riskLevel: "CRITICAL",
+        confidence: 0.96,
+        summary: "Rapid trajectory convergence between worker W-017 and Toyota Forklift F-004 in Zone 01 entrance.",
+        contributingFactors: [
+          "TTC estimated at 1.4s (< 2.0s emergency threshold)",
+          "Clearance distance reduced to 1.8m in blind corner doorway",
+          "Forklift traveling at 6.8 km/h without sounding audible horn"
+        ],
+        recommendedAction: "Trigger Zone 01 acoustic strobe beacon (<5ms deterministic fast path). Direct worker to designated pathway.",
+        applicableRules: ["OSHA 1910.178(n)(4) - Blind Intersections & Cross Aisles"],
+        safetyReference: {
+          title: "Powered Industrial Trucks - Speed and Blind Spots",
+          code: "OSHA 1910.178(n)(4)",
+          source: "Safety Knowledge Base (Firecrawl Ingestion)",
+          guidance: "The driver shall slow down and sound the horn at cross aisles and other locations where vision is obstructed."
+        },
+        latencySeconds: 1.4
+      }
+    };
   }
 }
 

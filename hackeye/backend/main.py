@@ -53,6 +53,11 @@ dashboard_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "d
 if os.path.exists(dashboard_dir):
     app.mount("/static", StaticFiles(directory=dashboard_dir), name="static")
 
+# Mount Recorded Video Clips for Incidents
+videos_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "videos"))
+if os.path.exists(videos_dir):
+    app.mount("/videos", StaticFiles(directory=videos_dir), name="videos")
+
 @app.get("/")
 async def serve_dashboard():
     index_path = os.path.join(dashboard_dir, "index.html")

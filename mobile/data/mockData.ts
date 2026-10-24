@@ -87,6 +87,7 @@ export const MOCK_INCIDENTS: Incident[] = [
     machineId: "EX-02",
     machineType: "excavator",
     machineName: "CAT 320 Hydraulic Excavator",
+    clipUrl: "http://localhost:8000/videos/videos/nearmiss-rgb-00000/001e53453441935632ae_run_1_seed_1288693302.ceiling_00.rgb.mp4",
     deterministicTrigger: {
       workerDetected: true,
       machineDetected: true,
@@ -142,6 +143,7 @@ export const MOCK_INCIDENTS: Incident[] = [
     machineId: "FL-05",
     machineType: "forklift",
     machineName: "Toyota Core Electric Forklift",
+    clipUrl: "http://localhost:8000/videos/forklift_approaching_entrance.mp4",
     acknowledgedBy: "Supervisor Dave Miller",
     acknowledgedAt: "13:16:10",
     deterministicTrigger: {
@@ -194,6 +196,7 @@ export const MOCK_INCIDENTS: Incident[] = [
     machineId: "FL-03",
     machineType: "forklift",
     machineName: "Crown Reach Truck",
+    clipUrl: "http://localhost:8000/videos/worker_no_helmet.mp4",
     acknowledgedBy: "Supervisor Dave Miller",
     acknowledgedAt: "11:05:00",
     resolutionNote: "Worker retrieved certified hard hat from PPE station before resuming racking pallet retrieval.",

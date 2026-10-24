@@ -34,12 +34,24 @@ def get_health():
 def get_zones():
     return swarm_coordinator.get_swarm_status()
 
+def map_clip_for_incident(zone: Optional[str] = "", machine_type: Optional[str] = "", worker_id: Optional[str] = "") -> str:
+    z = (zone or "").lower()
+    m = (machine_type or "").lower()
+    if "truck" in m or "loading" in z:
+        return "/videos/loading_zone_truck.mp4"
+    elif "excavator" in m or "excavation" in z:
+        return "/videos/videos/nearmiss-rgb-00000/001e53453441935632ae_run_1_seed_1288693302.ceiling_00.rgb.mp4"
+    elif "zone_02" in z or "inside" in z:
+        return "/videos/worker_at_entrance_inside.mp4"
+    return "/videos/forklift_approaching_entrance.mp4"
+
 @router.get("/incidents")
 def get_incidents(limit: int = 25, db: Session = Depends(get_db)):
     incidents = db.query(Incident).order_by(Incident.timestamp.desc()).limit(limit).all()
     return [
         {
             "incident_id": inc.incident_id,
+            "title": f"{inc.risk_level.title() if inc.risk_level else 'Safety'} Incident: {(inc.machine_type or 'Machinery').title()} Proximity",
             "timestamp": inc.timestamp.isoformat() if inc.timestamp else None,
             "zone": inc.zone,
             "worker_id": inc.worker_id,
@@ -51,7 +63,10 @@ def get_incidents(limit: int = 25, db: Session = Depends(get_db)):
             "status": inc.status,
             "local_alert_triggered": inc.local_alert_triggered,
             "sync_status": inc.sync_status,
-            "ai_summary": inc.ai_analysis.get("reason") if inc.ai_analysis else None
+            "clip_url": map_clip_for_incident(inc.zone, inc.machine_type, inc.worker_id),
+            "ai_summary": inc.ai_analysis.get("reason") if inc.ai_analysis else (
+                f"Worker {inc.worker_id or 'W-017'} detected in close proximity ({inc.distance_m or 2.1}m) to active {inc.machine_type or 'forklift'}."
+            )
         }
         for inc in incidents
     ]
@@ -61,8 +76,45 @@ def get_incident_detail(incident_id: str, db: Session = Depends(get_db)):
     inc = db.query(Incident).filter(Incident.incident_id == incident_id).first()
     if not inc:
         raise HTTPException(status_code=404, detail="Incident not found")
+    
+    ai_data = inc.ai_analysis
+    if not ai_data:
+        try:
+            ai_data = ai_safety_agent.process_incident({
+                "incident_id": inc.incident_id,
+                "timestamp": inc.timestamp.isoformat() if inc.timestamp else datetime.now(timezone.utc).isoformat(),
+                "zone": inc.zone or "ZONE_01",
+                "worker_id": inc.worker_id or "W-017",
+                "machine_id": inc.machine_id or "F-004",
+                "machine_type": inc.machine_type or "forklift",
+                "distance_m": inc.distance_m or 2.1,
+                "ttc_seconds": inc.ttc_seconds or 1.6,
+                "risk_level": inc.risk_level or "CRITICAL"
+            })
+            inc.ai_analysis = ai_data
+            db.commit()
+        except Exception:
+            ai_data = {
+                "risk_assessment": inc.risk_level or "CRITICAL",
+                "reason": f"Worker {inc.worker_id or 'W-017'} breached safety buffer within {inc.distance_m or 2.1}m of active {inc.machine_type or 'forklift'}.",
+                "predicted_outcome": "High potential for impact collision due to restricted machine deceleration envelope.",
+                "contributing_factors": [
+                    f"Distance ({inc.distance_m or 2.1}m) below safety threshold of 3.5m",
+                    f"TTC: {inc.ttc_seconds or 1.6}s allows insufficient operator reaction margin",
+                    "Acoustic masking from warehouse equipment background noise",
+                    "Shared transit corridor lacking physical bollards"
+                ],
+                "recommended_actions": [
+                    "Sound physical beacon and order immediate machine halt",
+                    "Direct worker to high-visibility pedestrian pathway",
+                    "Log incident to OSHA compliance register"
+                ],
+                "knowledge_used": "OSHA 1910.178(m)(2): Powered industrial truck operators must maintain safe distance from pedestrians at all times."
+            }
+
     return {
         "incident_id": inc.incident_id,
+        "title": f"{inc.risk_level.title() if inc.risk_level else 'Safety'} Incident: {(inc.machine_type or 'Machinery').title()} Proximity",
         "timestamp": inc.timestamp.isoformat() if inc.timestamp else None,
         "zone": inc.zone,
         "worker_id": inc.worker_id,
@@ -72,9 +124,98 @@ def get_incident_detail(incident_id: str, db: Session = Depends(get_db)):
         "ttc_seconds": inc.ttc_seconds,
         "risk_level": inc.risk_level,
         "status": inc.status,
-        "ai_analysis": inc.ai_analysis,
-        "knowledge_cited": inc.knowledge_cited,
+        "clip_url": map_clip_for_incident(inc.zone, inc.machine_type, inc.worker_id),
+        "ai_analysis": ai_data,
+        "knowledge_cited": inc.knowledge_cited or ai_data.get("knowledge_used"),
         "sync_status": inc.sync_status
+    }
+
+@router.post("/incidents/{incident_id}/acknowledge")
+def acknowledge_incident(incident_id: str, db: Session = Depends(get_db)):
+    inc = db.query(Incident).filter(Incident.incident_id == incident_id).first()
+    if not inc:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    inc.status = "ACKNOWLEDGED"
+    db.commit()
+    return {"status": "ACKNOWLEDGED", "incident_id": incident_id}
+
+@router.post("/incidents/simulate")
+def simulate_incident(db: Session = Depends(get_db)):
+    """Generates an immediate test critical incident for mobile supervisor alert testing."""
+    now = datetime.now(timezone.utc)
+    inc_id = f"INC-ALERT-{int(now.timestamp())}"
+    
+    analysis = {
+        "risk_assessment": "CRITICAL",
+        "reason": "Rapid trajectory convergence between worker W-017 and Toyota Forklift F-004 in Zone 01 entrance.",
+        "predicted_outcome": "Immediate pinch-point collision if forklift does not abort entry within 1.6 seconds.",
+        "contributing_factors": [
+            "TTC estimated at 1.4s (< 2.0s emergency threshold)",
+            "Clearance distance reduced to 1.8m in blind corner doorway",
+            "Forklift traveling at 6.8 km/h without sounding audible horn",
+            "Worker carrying materials with obstructed lateral peripheral vision"
+        ],
+        "recommended_actions": [
+            "Trigger Zone 01 acoustic strobe beacon (<5ms deterministic fast path)",
+            "Dispatch supervisor mobile notification",
+            "Recommend speed governor enforcement at entrance threshold"
+        ],
+        "knowledge_used": "OSHA 1910.178(n)(4): The driver shall be required to slow down and sound the horn at cross aisles and other locations where vision is obstructed."
+    }
+
+    new_inc = Incident(
+        incident_id=inc_id,
+        timestamp=now,
+        zone="ZONE_01 (Bay Entrance)",
+        worker_id="W-017",
+        machine_id="F-004",
+        machine_type="forklift",
+        distance_m=1.8,
+        ttc_seconds=1.4,
+        risk_level="CRITICAL",
+        status="ACTIVE",
+        local_alert_triggered=True,
+        ai_analysis=analysis,
+        knowledge_cited="OSHA Standard 29 CFR 1910.178(n)(4)",
+        sync_status="SYNCED"
+    )
+    db.add(new_inc)
+    db.commit()
+
+    # Trigger Asynchronous Render Workflow (9-Stage Cloud Reasoning)
+    inc_payload = {
+        "incident_id": inc_id,
+        "zone": "ZONE_01 (Bay Entrance)",
+        "worker_id": "W-017",
+        "machine_id": "F-004",
+        "machine_type": "forklift",
+        "distance_m": 1.8,
+        "ttc_seconds": 1.4,
+        "risk_level": "CRITICAL",
+        "evaluation_latency_ms": 4
+    }
+    wf = render_workflow_orchestrator.trigger_incident_workflow(inc_payload, analysis)
+    
+    return {
+        "status": "triggered",
+        "workflow_id": wf.workflow_id,
+        "render_cloud_status": "ASYNC_WORKFLOW_ACTIVE",
+        "incident": {
+            "incident_id": inc_id,
+            "title": "Critical Breach: Forklift Entrance Convergence",
+            "timestamp": now.isoformat(),
+            "zone": "ZONE_01 (Bay Entrance)",
+            "worker_id": "W-017",
+            "machine_id": "F-004",
+            "machine_type": "forklift",
+            "distance_m": 1.8,
+            "ttc_seconds": 1.4,
+            "risk_level": "CRITICAL",
+            "status": "ACTIVE",
+            "clip_url": "/videos/forklift_approaching_entrance.mp4",
+            "ai_analysis": analysis,
+            "render_workflow": wf.to_dict()
+        }
     }
 
 @router.post("/incidents")
@@ -144,8 +285,14 @@ def trigger_cloud_sync():
     synced = local_queue.sync_to_cloud()
     return {"status": "synced", "items_synced": synced}
 
+@router.get("/workflows")
+def get_all_workflows(limit: int = 15):
+    """Returns recent Render Cloud workflow executions."""
+    return render_workflow_orchestrator.get_all_workflows(limit=limit)
+
 @router.get("/workflows/latest")
 def get_latest_workflow():
+    """Returns the latest active or completed Render Cloud workflow execution."""
     wf = render_workflow_orchestrator.get_latest_workflow()
     return wf or {"status": "idle", "message": "No active workflow execution."}
 
@@ -155,6 +302,20 @@ def get_workflow(wf_id: str):
     if not wf:
         raise HTTPException(status_code=404, detail="Workflow execution not found")
     return wf
+
+@router.post("/workflows/{wf_id}/retry")
+def retry_workflow(wf_id: str, from_step: int = 0):
+    """Retries a Render Cloud workflow execution from specified step index."""
+    result = render_workflow_orchestrator.retry_workflow(wf_id, from_step_index=from_step)
+    if not result:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    return {"status": "retrying", "workflow": result}
+
+@router.post("/workflows/trigger")
+def trigger_custom_workflow(payload: Dict[str, Any]):
+    """Manually dispatches an incident into the 9-stage Render Workflow."""
+    wf = render_workflow_orchestrator.trigger_incident_workflow(payload, payload.get("ai_analysis"))
+    return {"status": "triggered", "workflow": wf.to_dict()}
 
 @router.get("/n8n/recent")
 def get_recent_n8n():
