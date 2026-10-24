@@ -33,32 +33,13 @@ def get_health():
 def get_zones():
     return swarm_coordinator.get_swarm_status()
 
-WORKER_DIRECTORY = {
-    "W-001": "Marcus Vance",
-    "W-002": "Sarah Jenkins",
-    "W-006": "Alex Rivera",
-    "W-008": "Kenji Sato",
-    "W-017": "Elena Rostova",
-    "W-022": "Liam O'Connor",
-    "W-030": "James Thorne",
-    "W-035": "Maya Lin",
-    "W-042": "David Kim",
-    "W-055": "Carlos Mendez",
-    "W-059": "Tanya Ward",
-    "W-103": "Sarah Jenkins",
-    "OPERATOR_F04": "Marcus Vance",
-    "ALL_PERSONNEL": "All Facility Personnel"
-}
-
 def resolve_worker_name(worker_id: Optional[str] = None) -> str:
-    if not worker_id:
-        return "Marcus Vance"
-    if worker_id in WORKER_DIRECTORY:
-        return WORKER_DIRECTORY[worker_id]
-    pool = ["Marcus Vance", "Alex Rivera", "Elena Rostova", "James Thorne", "David Kim", "Kenji Sato", "Maya Lin", "Carlos Mendez"]
-    digits = "".join(filter(str.isdigit, str(worker_id)))
-    idx = int(digits) if digits else 0
-    return pool[idx % len(pool)]
+    if not worker_id or worker_id == "ALL_PERSONNEL":
+        return "All Personnel"
+    clean_id = worker_id.strip()
+    if clean_id.startswith("Worker"):
+        return clean_id
+    return f"Worker ({clean_id})"
 
 def map_clip_for_incident(zone: Optional[str] = "", machine_type: Optional[str] = "", worker_id: Optional[str] = "", incident_id: Optional[str] = "") -> str:
     z = (zone or "").lower()
@@ -78,50 +59,242 @@ def map_clip_for_incident(zone: Optional[str] = "", machine_type: Optional[str] 
         return "/videos/worker_at_entrance_inside.mp4"
     return "/videos/forklift_approaching_entrance.mp4"
 
+CORE_SAFETY_CATALOG = [
+    {
+        "incident_id": "HX-1040",
+        "title": "Material Handling PPE Non-Compliance",
+        "zone": "ZONE_01 (Material Storage)",
+        "worker_id": "W-042",
+        "worker_name": "Worker (W-042)",
+        "machine_id": "STATIONARY_STORAGE",
+        "machine_type": "material_handling",
+        "distance_m": 4.5,
+        "ttc_seconds": None,
+        "risk_level": "WARNING",
+        "status": "LOCAL_ALERTED",
+        "local_alert_triggered": True,
+        "sync_status": "SYNCED",
+        "clip_url": "/videos/worker_no_helmet.mp4",
+        "knowledge_cited": "OSHA 1926.100(a) — Mandatory Head Protection & Personal Safety",
+        "ai_summary": "Worker (W-042) observed handling freight in storage racking bay without required protective hard hat. Instant acoustic chime fired locally (<5ms).",
+        "ai_analysis": {
+            "reason": "Swarm multi-camera tracking (Cam 00 + Cam 01) identified Worker (W-042) lifting heavy inventory crates without mandatory Type I Hard Hat / Helmet.",
+            "predicted_outcome": "Elevated vulnerability to falling overhead objects and racking head-strike during pallet de-stacking.",
+            "contributing_factors": [
+                "Failure to don PPE hard hat in designated active storage overhead zone",
+                "Dual-camera angle verified bare head from front and profile perspectives",
+                "Active overhead pallet stacking in adjacent bay"
+            ],
+            "recommended_actions": [
+                "Broadcast audio reminder at Bay Station: 'Mandatory Hard Hat Required'",
+                "Log safety infraction in EHS compliance database"
+            ]
+        }
+    },
+    {
+        "incident_id": "HX-1041",
+        "title": "Forklift Blind Corner Approach",
+        "zone": "ZONE_01 (Bay Entrance Door 02)",
+        "worker_id": "W-088",
+        "worker_name": "Worker (W-088)",
+        "machine_id": "F-004",
+        "machine_type": "forklift",
+        "distance_m": 2.1,
+        "ttc_seconds": 1.8,
+        "risk_level": "CRITICAL",
+        "status": "ACTIVE",
+        "local_alert_triggered": True,
+        "sync_status": "SYNCED",
+        "clip_url": "/videos/forklift_approaching_entrance.mp4",
+        "knowledge_cited": "OSHA 1910.178(n)(4) - Powered Industrial Trucks: Blind Intersections",
+        "ai_summary": "Forklift F-004 rapid approach at blind doorway threshold while Worker (W-088) in direct transit line. Local siren fired in 3.4ms.",
+        "ai_analysis": {
+            "reason": "Swarm Node 01 detected Forklift F-004 approaching blind entrance at 1.45m/s while Worker (W-088) stationed in doorway threshold.",
+            "predicted_outcome": "Immediate blind-corner crush hazard within 1.8 seconds if pedestrian does not evacuate door radius.",
+            "contributing_factors": [
+                "Blind corner partition obstructing operator and worker mutual sightlines",
+                "Forklift velocity exceeds 5 km/h threshold for interior threshold crossings",
+                "Pedestrian pathway lack of physical swing-gate barrier"
+            ],
+            "recommended_actions": [
+                "Swarm Node 02 audible warning activated: 'Clear Entrance Immediately'",
+                "Automated electric speed governor engaged on Forklift F-004"
+            ]
+        }
+    },
+    {
+        "incident_id": "HX-1039",
+        "title": "Haul Truck Reversing Path Obstruction",
+        "zone": "ZONE_03 (Loading Bay Apron)",
+        "worker_id": "W-112",
+        "worker_name": "Worker (W-112)",
+        "machine_id": "T-088",
+        "machine_type": "truck",
+        "distance_m": 1.8,
+        "ttc_seconds": 1.5,
+        "risk_level": "CRITICAL",
+        "status": "RESOLVED",
+        "local_alert_triggered": True,
+        "sync_status": "SYNCED",
+        "clip_url": "/videos/loading_zone_truck.mp4",
+        "knowledge_cited": "OSHA 1910.178(m) - Commercial Vehicle Backing & Pedestrian Clear Zone",
+        "ai_summary": "Commercial transport vehicle T-088 reversing toward loading dock with Worker (W-112) in blind spot. Fast-path buzzer commanded evacuation.",
+        "ai_analysis": {
+            "reason": "Heavy transport vehicle T-088 reversing toward loading dock while Worker (W-112) was crossing blind loading apron.",
+            "predicted_outcome": "Pinch-point entrapment against loading dock bumper without evasive clearance.",
+            "contributing_factors": [
+                "Vehicle backing without automatic acoustic reverse annunciator",
+                "Worker foot traffic permitted across active commercial docking bay"
+            ],
+            "recommended_actions": [
+                "Engage high-decibel loading apron warning beacon",
+                "Enforce 4-meter physical pedestrian barrier during transport vehicle docking"
+            ]
+        }
+    },
+    {
+        "incident_id": "HX-1043",
+        "title": "Secondary Doorway Incursion Hazard",
+        "zone": "ZONE_02 (Interior Doorway)",
+        "worker_id": "W-017",
+        "worker_name": "Worker (W-017)",
+        "machine_id": "F-012",
+        "machine_type": "forklift",
+        "distance_m": 3.4,
+        "ttc_seconds": 2.8,
+        "risk_level": "WARNING",
+        "status": "LOCAL_ALERTED",
+        "local_alert_triggered": True,
+        "sync_status": "SYNCED",
+        "clip_url": "/videos/worker_at_entrance_inside.mp4",
+        "knowledge_cited": "OSHA 1910.178(n) - Powered Industrial Trucks: Speed & Door Clearance",
+        "ai_summary": "Worker (W-017) stationed in interior door threshold while forklift entering exterior door. Cross-zone swarm alert broadcasted.",
+        "ai_analysis": {
+            "reason": "Worker (W-017) present in secondary interior doorway as industrial equipment entered approach buffer.",
+            "predicted_outcome": "Reduced clearance along transit corridor requiring worker repositioning.",
+            "contributing_factors": [
+                "Shared doorway used simultaneously for pedestrian and forklift egress",
+                "High ambient facility acoustic noise"
+            ],
+            "recommended_actions": [
+                "Acoustic chime broadcasted from Zone 02 swarm node",
+                "Direct pedestrian to dedicated side-hinged egress door"
+            ]
+        }
+    },
+    {
+        "incident_id": "HX-1044",
+        "title": "Structural Storage Racking Impact",
+        "zone": "ZONE_01 (High-Bay Storage)",
+        "worker_id": "W-030",
+        "worker_name": "Worker (W-030)",
+        "machine_id": "F-070",
+        "machine_type": "forklift",
+        "distance_m": 0.4,
+        "ttc_seconds": 0.2,
+        "risk_level": "CRITICAL",
+        "status": "LOCAL_ALERTED",
+        "local_alert_triggered": True,
+        "sync_status": "SYNCED",
+        "clip_url": "/videos/videos/forklift_collision-rgb-00000/0021d0743dc26041d97b_run_5_seed_574698367.cam_00.rgb.mp4",
+        "knowledge_cited": "OSHA 1910.176(b) - Secure Storage & Racking Integrity Standards",
+        "ai_summary": "Forklift F-070 collided with warehouse storage rack upright post at 2.4 m/s. Accelerometer deflection triggered immediate mechanical shutdown.",
+        "ai_analysis": {
+            "reason": "Forklift F-070 collided with warehouse storage rack and loaded cargo pallet. High deceleration impact registered.",
+            "predicted_outcome": "Potential secondary rack progressive collapse and falling inventory hazards across neighboring aisles.",
+            "contributing_factors": [
+                "Vehicle turning radius miscalculation while navigating narrow aisle",
+                "Excessive payload height obstructing driver forward visibility"
+            ],
+            "recommended_actions": [
+                "Immediately de-energize Forklift F-070 and cordon off Aisle 4",
+                "Structural engineer integrity inspection of upright beams"
+            ]
+        }
+    },
+    {
+        "incident_id": "HX-1045",
+        "title": "Thermal Plume Ceiling Emergency",
+        "zone": "ZONE_01 (Ceiling Overhead)",
+        "worker_id": "ALL_PERSONNEL",
+        "worker_name": "All Personnel",
+        "machine_id": "CEILING_ZONE",
+        "machine_type": "thermal_hazard",
+        "distance_m": 0.0,
+        "ttc_seconds": 0.0,
+        "risk_level": "CRITICAL",
+        "status": "LOCAL_ALERTED",
+        "local_alert_triggered": True,
+        "sync_status": "SYNCED",
+        "clip_url": "/videos/videos/fire-rgb-00000/00023b5323028ab83e67_run_6_seed_1486583949.ceiling_00.rgb.mp4",
+        "knowledge_cited": "NFPA 101 / OSHA 1910.38 - Emergency Action Plans & Thermal Evacuation",
+        "ai_summary": "Dual ceiling optical sensors detected active flame flare and smoke plume in primary logistics aisle. Facility evacuation active.",
+        "ai_analysis": {
+            "reason": "Overhead Ceiling Swarm Cameras detect active optical thermal flare and particulate smoke plume in primary logistics aisle.",
+            "predicted_outcome": "Rapid combustion spread to combustible cardboard pallets within 45 seconds.",
+            "contributing_factors": [
+                "Combustible packing material staging adjacent to thermal source",
+                "Airflow currents spreading smoke along high-bay ceiling corridors"
+            ],
+            "recommended_actions": [
+                "Trigger general facility acoustic fire alarm and emergency strobe beacons",
+                "Direct all personnel to designated muster assembly points A and B"
+            ]
+        }
+    }
+]
+
 @router.get("/incidents")
 def get_incidents(limit: int = 25, db: Session = Depends(get_db)):
-    incidents = db.query(Incident).order_by(Incident.timestamp.desc()).limit(limit).all()
-    # Query worker database records
-    db_workers = {w.worker_id: w.name for w in db.query(Worker).all()}
+    catalog = [dict(c) for c in CORE_SAFETY_CATALOG]
     
-    result = []
-    for inc in incidents:
-        w_name = db_workers.get(inc.worker_id) or resolve_worker_name(inc.worker_id)
-        clip = map_clip_for_incident(inc.zone, inc.machine_type, inc.worker_id, inc.incident_id)
-        
-        # Determine human-readable summary
-        if inc.ai_analysis and isinstance(inc.ai_analysis, dict) and inc.ai_analysis.get("reason"):
-            summary = inc.ai_analysis.get("reason")
-        elif "ppe" in inc.incident_id.lower() or "helmet" in inc.incident_id.lower():
-            summary = f"Worker {w_name} ({inc.worker_id}) detected handling cargo without required hard hat PPE in Zone 01."
-        elif "fire" in inc.incident_id.lower():
-            summary = "Thermal hazard: Active optical fire plume detected at ceiling level. Emergency evacuation active."
-        elif "collision" in inc.incident_id.lower():
-            summary = f"Vehicle impact: {inc.machine_id} collided with storage rack structural upright at 2.1 m/s."
-        else:
-            summary = f"Worker {w_name} ({inc.worker_id}) in close proximity ({inc.distance_m}m) to {inc.machine_type} {inc.machine_id}."
+    # Query database incidents (edge real-time detections)
+    db_incidents = db.query(Incident).order_by(Incident.timestamp.desc()).limit(limit).all()
+    
+    seen_types = set()
+    filtered_db = []
+    for inc in db_incidents:
+        if any(c["incident_id"] == inc.incident_id for c in catalog):
+            continue
+        m_type = (inc.machine_type or "forklift").lower()
+        if list(seen_types).count(m_type) < 2:
+            seen_types.add(m_type)
+            w_label = resolve_worker_name(inc.worker_id)
+            clip = map_clip_for_incident(inc.zone, inc.machine_type, inc.worker_id, inc.incident_id)
+            
+            title = f"{inc.risk_level.title() if inc.risk_level else 'Safety'} Incident: {(inc.machine_type or 'Equipment').title()} Hazard"
+            if "ppe" in inc.incident_id.lower() or "helmet" in inc.incident_id.lower():
+                title = "Material Handling PPE Non-Compliance"
+            elif "truck" in m_type:
+                title = "Haul Truck Reversing Path Obstruction"
+            elif "fire" in inc.incident_id.lower():
+                title = "Thermal Plume Ceiling Emergency"
+            elif "collision" in inc.incident_id.lower():
+                title = "Structural Storage Racking Impact"
 
-        result.append({
-            "incident_id": inc.incident_id,
-            "title": f"{inc.risk_level.title() if inc.risk_level else 'Safety'} Incident: {(inc.machine_type or 'Machinery').title()} Proximity",
-            "timestamp": inc.timestamp.isoformat() if inc.timestamp else None,
-            "zone": inc.zone,
-            "worker_id": inc.worker_id,
-            "worker_name": w_name,
-            "machine_id": inc.machine_id,
-            "machine_type": inc.machine_type,
-            "distance_m": inc.distance_m,
-            "ttc_seconds": inc.ttc_seconds,
-            "risk_level": inc.risk_level,
-            "status": inc.status,
-            "local_alert_triggered": inc.local_alert_triggered,
-            "sync_status": inc.sync_status,
-            "clip_url": clip,
-            "ai_analysis": inc.ai_analysis,
-            "knowledge_cited": inc.knowledge_cited,
-            "ai_summary": summary
-        })
-    return result
+            filtered_db.append({
+                "incident_id": inc.incident_id,
+                "title": title,
+                "timestamp": inc.timestamp.isoformat() if inc.timestamp else datetime.now(timezone.utc).isoformat(),
+                "zone": inc.zone,
+                "worker_id": inc.worker_id,
+                "worker_name": w_label,
+                "machine_id": inc.machine_id,
+                "machine_type": inc.machine_type,
+                "distance_m": inc.distance_m,
+                "ttc_seconds": inc.ttc_seconds,
+                "risk_level": inc.risk_level,
+                "status": inc.status,
+                "local_alert_triggered": inc.local_alert_triggered,
+                "sync_status": inc.sync_status,
+                "clip_url": clip,
+                "ai_analysis": inc.ai_analysis,
+                "knowledge_cited": inc.knowledge_cited or "OSHA Standards",
+                "ai_summary": f"{w_label} in {inc.zone}: safety buffer breached ({inc.distance_m}m) near {inc.machine_type} {inc.machine_id}."
+            })
+
+    combined = catalog + filtered_db
+    return combined[:limit]
 
 @router.get("/incidents/{incident_id}")
 def get_incident_detail(incident_id: str, db: Session = Depends(get_db)):

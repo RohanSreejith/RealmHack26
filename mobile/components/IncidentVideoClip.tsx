@@ -8,6 +8,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Video, ResizeMode } from 'expo-av';
 
 interface IncidentVideoClipProps {
   clipUrl?: string;
@@ -36,31 +37,64 @@ export const IncidentVideoClip: React.FC<IncidentVideoClipProps> = ({
   const isCritical = riskLevel === 'CRITICAL';
   const badgeColor = isCritical ? '#EF4444' : '#F59E0B';
 
-  // Fallback demo video URL if not provided
-  const videoSource = clipUrl || 'http://localhost:8000/videos/forklift_approaching_entrance.mp4';
+  // Resolve video URL for physical devices and simulators
+  const resolveUrl = (url?: string) => {
+    const cloudBase = (process.env.EXPO_PUBLIC_RENDER_URL || "https://hackeye-cloud-platform.onrender.com").replace(/\/$/, "");
+    if (!url) return `${cloudBase}/videos/forklift_approaching_entrance.mp4`;
+    if (url.startsWith('/videos')) {
+      return `${cloudBase}${url}`;
+    }
+    if (url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1')) {
+      const path = url.replace(/^http:\/\/(localhost|127\.0\.0\.1):8000/, '');
+      return `${cloudBase}${path}`;
+    }
+    return url;
+  };
 
-  const togglePlayback = () => {
-    if (Platform.OS === 'web' && videoRef.current) {
-      if (videoRef.current.paused) {
-        videoRef.current.play();
-        setIsPlaying(true);
+  const videoSource = resolveUrl(clipUrl);
+
+  const togglePlayback = async () => {
+    try {
+      if (Platform.OS === 'web' && videoRef.current) {
+        if (videoRef.current.paused) {
+          videoRef.current.play();
+          setIsPlaying(true);
+        } else {
+          videoRef.current.pause();
+          setIsPlaying(false);
+        }
+      } else if (videoRef.current) {
+        if (isPlaying) {
+          await videoRef.current.pauseAsync();
+          setIsPlaying(false);
+        } else {
+          await videoRef.current.playAsync();
+          setIsPlaying(true);
+        }
       } else {
-        videoRef.current.pause();
-        setIsPlaying(false);
+        setIsPlaying(prev => !prev);
       }
-    } else {
-      setIsPlaying(prev => !prev);
+    } catch (e) {
+      console.log('Playback toggle notice:', e);
     }
   };
 
-  const restartPlayback = () => {
-    if (Platform.OS === 'web' && videoRef.current) {
-      videoRef.current.currentTime = 0;
-      videoRef.current.play();
-      setIsPlaying(true);
-    } else {
-      setPlaybackTime(0);
-      setIsPlaying(true);
+  const restartPlayback = async () => {
+    try {
+      if (Platform.OS === 'web' && videoRef.current) {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play();
+        setIsPlaying(true);
+      } else if (videoRef.current) {
+        await videoRef.current.setPositionAsync(0);
+        await videoRef.current.playAsync();
+        setIsPlaying(true);
+      } else {
+        setPlaybackTime(0);
+        setIsPlaying(true);
+      }
+    } catch (e) {
+      console.log('Playback restart notice:', e);
     }
   };
 
@@ -116,10 +150,23 @@ export const IncidentVideoClip: React.FC<IncidentVideoClipProps> = ({
             />
           </div>
         ) : (
-          <View style={styles.fallbackPlayer}>
-            <MaterialCommunityIcons name="cctv" size={48} color="#64748B" />
-            <Text style={styles.fallbackText}>Incident Camera Clip Stream</Text>
-            <Text style={styles.fallbackSubtext}>{machineName} • Loop 3.6s</Text>
+          <View style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#020617', justifyContent: 'center', alignItems: 'center' }}>
+            <Video
+              ref={videoRef}
+              source={{ uri: videoSource }}
+              rate={1.0}
+              volume={1.0}
+              isMuted={true}
+              resizeMode={ResizeMode.COVER}
+              shouldPlay={isPlaying}
+              isLooping
+              style={StyleSheet.absoluteFill}
+              onLoad={() => setIsLoaded(true)}
+              onError={(e) => console.log('[Native Video Error]', e)}
+            />
+            {!isLoaded && (
+              <ActivityIndicator size="small" color="#2563EB" style={{ position: 'absolute' }} />
+            )}
           </View>
         )}
 
