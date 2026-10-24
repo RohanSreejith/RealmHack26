@@ -13,13 +13,12 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 const NativeVideoPlayer: React.FC<{
   source: string;
   isPlaying: boolean;
-  onLoaded?: () => void;
-}> = ({ source, isPlaying, onLoaded }) => {
+}> = ({ source, isPlaying }) => {
+  const [ready, setReady] = useState(false);
   const player = useVideoPlayer(source, p => {
     p.loop = true;
     p.muted = true;
     p.play();
-    onLoaded?.();
   });
 
   useEffect(() => {
@@ -32,13 +31,34 @@ const NativeVideoPlayer: React.FC<{
     }
   }, [isPlaying, player]);
 
+  useEffect(() => {
+    if (!player) return;
+    const sub = player.addListener('statusChange', ({ status }: any) => {
+      if (status === 'readyToPlay') {
+        setReady(true);
+      }
+    });
+    const timer = setTimeout(() => setReady(true), 350);
+    return () => {
+      sub?.remove?.();
+      clearTimeout(timer);
+    };
+  }, [player]);
+
   return (
-    <VideoView
-      style={StyleSheet.absoluteFill}
-      player={player}
-      nativeControls={false}
-      contentFit="cover"
-    />
+    <View style={StyleSheet.absoluteFill}>
+      <VideoView
+        style={{ width: '100%', height: '100%' }}
+        player={player}
+        nativeControls={false}
+        contentFit="cover"
+      />
+      {!ready && (
+        <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#020617' }]}>
+          <ActivityIndicator size="small" color="#2563EB" />
+        </View>
+      )}
+    </View>
   );
 };
 
@@ -222,16 +242,12 @@ export const IncidentVideoClip: React.FC<IncidentVideoClipProps> = ({
           </div>
         ) : (
           <SafeNativeVideoBoundary fallback={fallbackCctvView}>
-            <View style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#020617', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ position: 'relative', width: '100%', height: '100%', backgroundColor: '#020617' }}>
               <NativeVideoPlayer
                 key={currentSource}
                 source={currentSource}
                 isPlaying={isPlaying}
-                onLoaded={() => setIsLoaded(true)}
               />
-              {!isLoaded && (
-                <ActivityIndicator size="small" color="#2563EB" style={{ position: 'absolute' }} />
-              )}
             </View>
           </SafeNativeVideoBoundary>
         )}
